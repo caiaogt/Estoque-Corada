@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "portfolio-server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "port": 3000
+    },
+    {
+      "name": "atelier-clarinete-server",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd /d C:\\Users\\caiov\\OneDrive\\Desktop\\CLAUDE~1\\ATELIE~1 && npm start"],
+      "port": 3001
+    }
+  ]
+}

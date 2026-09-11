@@ -1,0 +1,16 @@
+{
+  "name": "corada-meali-estoque",
+  "version": "1.0.0",
+  "description": "Controle de estoque - CORADA & MEALI",
+  "main": "server.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

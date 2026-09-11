@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CORADA & MEALI — Controle de Estoque</title>
+  <link rel="icon" type="image/png" href="img/corada-logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- LOGIN -->
+  <div id="login-screen">
+    <form id="login-form" class="login-box">
+      <img src="img/corada-logo-login.png" class="login-logo" alt="CORADA">
+      <h1>Controle de Estoque</h1>
+      <input type="text" name="usuario" placeholder="Usuário" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false">
+      <div class="senha-wrapper">
+        <input type="password" name="senha" id="login-senha" placeholder="Senha" required autocomplete="current-password">
+        <button type="button" class="senha-toggle" id="senha-toggle-btn" aria-label="Mostrar senha">👁</button>
+      </div>
+      <button type="submit" class="btn btn-primary">Entrar</button>
+      <p class="feedback" id="login-feedback"></p>
+    </form>
+  </div>
+
+  <!-- PERFIL -->
+  <div class="overlay" id="perfil-overlay"></div>
+  <div class="perfil-modal" id="perfil-modal">
+    <div class="perfil-modal-header">
+      <h2>Meu Perfil</h2>
+      <button type="button" class="close-btn" id="perfil-fechar-btn">✕</button>
+    </div>
+    <div class="perfil-modal-body">
+      <div class="perfil-foto-area">
+        <span class="avatar-circle avatar-grande" id="perfil-avatar-preview">?</span>
+        <label class="btn btn-ghost btn-small" for="perfil-foto-input">Trocar foto</label>
+        <input type="file" id="perfil-foto-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      </div>
+
+      <form id="perfil-dados-form">
+        <label class="campo-label">Usuário de login</label>
+        <input type="text" id="perfil-usuario" disabled>
+        <label class="campo-label">Nome de exibição</label>
+        <input type="text" id="perfil-nome-exibicao" placeholder="Como quer ser chamado(a)">
+        <button type="submit" class="btn btn-primary">Salvar Perfil</button>
+      </form>
+      <p class="feedback" id="perfil-dados-feedback"></p>
+
+      <hr class="perfil-divisor">
+
+      <form id="perfil-senha-form">
+        <label class="campo-label">Trocar senha</label>
+        <input type="password" id="perfil-senha-atual" placeholder="Senha atual" required>
+        <input type="password" id="perfil-senha-nova" placeholder="Nova senha" required>
+        <button type="submit" class="btn btn-primary">Trocar Senha</button>
+      </form>
+      <p class="feedback" id="perfil-senha-feedback"></p>
+    </div>
+  </div>
+
+  <div class="app-shell" id="app-shell">
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand">
+        <img src="img/corada-logo.png" class="brand-logo" alt="CORADA">
+        <div>
+          <span class="brand-subtitle">Controle de Estoque</span>
+        </div>
+      </div>
+      <div class="user-menu">
+        <button type="button" class="avatar-btn" id="avatar-btn" title="Meu Perfil">
+          <span class="avatar-circle" id="avatar-circle">?</span>
+          <span id="usuario-logado"></span>
+        </button>
+        <button type="button" class="btn btn-ghost btn-small" id="logout-btn">Sair</button>
+      </div>
+    </div>
+    <button type="button" class="nav-toggle-btn container" id="nav-toggle-btn">
+      <span id="nav-current-label">Dashboard</span>
+      <span class="nav-toggle-icon">☰</span>
+    </button>
+    <nav class="tabs container" id="tabs-nav">
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+
+      <div class="nav-dropdown">
+        <button type="button" class="nav-dropdown-toggle">Estoque <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown-menu">
+          <button class="tab-btn" data-tab="estoque">Visão Geral</button>
+          <button class="tab-btn" data-tab="lote">Movimentação</button>
+          <button class="tab-btn" data-tab="contagem">Contagem Física</button>
+          <button class="tab-btn" data-tab="historico">Histórico</button>
+        </div>
+      </div>
+
+      <div class="nav-dropdown">
+        <button type="button" class="nav-dropdown-toggle">Cadastros <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown-menu">
+          <button class="tab-btn" data-tab="produtos">Produtos</button>
+          <button class="tab-btn" data-tab="kits">Kits</button>
+        </div>
+      </div>
+
+      <div class="nav-dropdown">
+        <button type="button" class="nav-dropdown-toggle">Vendas <span class="nav-caret">▾</span></button>
+        <div class="nav-dropdown-menu">
+          <button class="tab-btn" data-tab="vendas">Visão Geral</button>
+          <button class="tab-btn" data-tab="vendas-nova">Nova Venda</button>
+          <button class="tab-btn" data-tab="vendas-registradas">Vendas Registradas</button>
+          <button class="tab-btn" data-tab="produtos">Produtos</button>
+          <button class="tab-btn" data-tab="vendas-bling">Integração com Bling</button>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- DASHBOARD -->
+    <section class="tab-panel active" id="tab-dashboard">
+      <div class="summary">
+        <div class="summary-card">
+          <span class="summary-label">Itens ativos</span>
+          <span class="summary-value" id="dash-total-itens">0</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Unidades em estoque</span>
+          <span class="summary-value" id="dash-total-unidades">0</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Valor total em estoque (R$)</span>
+          <span class="summary-value" id="dash-total-valor">0,00</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Total de saídas (histórico)</span>
+          <span class="summary-value" id="dash-total-saidas">0</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Saldo por Local</h2>
+        <p class="hint">Quanto do estoque está com a gente ("Nosso") e quanto está com o revendedor Base 01.</p>
+        <div class="bar-chart" id="chart-local"></div>
+      </div>
+
+      <div class="dashboard-grid">
+        <div class="panel">
+          <h2>Saldo por Produto</h2>
+          <p class="hint">Top 15 produtos ativos com maior saldo em estoque.</p>
+          <div class="bar-chart" id="chart-saldo"></div>
+        </div>
+
+        <div class="panel">
+          <h2>O que mais está saindo</h2>
+          <p class="hint">Top 10 produtos por quantidade total de saída (histórico completo).</p>
+          <div class="bar-chart" id="chart-saidas"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Parados — Sem Nenhuma Saída Registrada</h2>
+        <p class="hint">Produtos ativos que nunca tiveram saída. Bons candidatos a rever giro ou promoção.</p>
+        <div class="table-wrapper">
+          <table>
+            <thead id="dash-parados-thead">
+              <tr>
+                <th data-sort="codigo">Código</th>
+                <th data-sort="descricao">Descrição</th>
+                <th data-sort="marca">Marca</th>
+                <th data-sort="linha">Linha</th>
+                <th data-sort="saldo">Saldo</th>
+              </tr>
+            </thead>
+            <tbody id="dash-parados-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ESTOQUE -->
+    <section class="tab-panel" id="tab-estoque">
+      <div class="summary">
+        <div class="summary-card">
+          <span class="summary-label">Itens ativos</span>
+          <span class="summary-value" id="estoque-total-itens">0</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Unidades em estoque</span>
+          <span class="summary-value" id="estoque-total-unidades">0</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Valor total em estoque (R$)</span>
+          <span class="summary-value" id="estoque-total-valor">0,00</span>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Estoque Atual</h2>
+          <div class="filters">
+            <input type="text" id="estoque-busca" placeholder="Buscar por código ou descrição">
+            <div id="estoque-colunas-mount"></div>
+            <button type="button" class="btn btn-primary" id="gerar-relatorio-btn">📄 Gerar Relatório</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="tabela-cartoes-mobile" id="estoque-tabela">
+            <thead id="estoque-thead">
+              <tr>
+                <th data-sort="codigo">Código</th>
+                <th data-sort="descricao">Descrição</th>
+                <th data-sort="marca">Marca</th>
+                <th data-sort="linha">Linha</th>
+                <th data-sort="total_entradas">Entradas</th>
+                <th data-sort="total_saidas">Saídas</th>
+                <th data-sort="saldo">Saldo Total</th>
+                <th data-sort="saldo_nosso">Saldo Nosso</th>
+                <th data-sort="saldo_base01"><img src="img/base01-logo.png" class="th-icon" alt="">Saldo Base 01</th>
+                <th data-sort="preco_b2b">Preço B2B</th>
+                <th data-sort="valor_total">Valor Total</th>
+              </tr>
+            </thead>
+            <tbody id="estoque-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- RELATÓRIO DE ESTOQUE (fora da tela, usado só pra gerar a imagem) -->
+    <div id="relatorio-estoque" class="relatorio-container">
+      <div class="relatorio-header">
+        <img src="img/corada-logo.png" class="relatorio-logo" alt="CORADA">
+        <div>
+          <h1>Estoque Atual</h1>
+          <span id="relatorio-data"></span>
+        </div>
+      </div>
+      <div class="relatorio-resumo">
+        <div><strong id="relatorio-total-itens"></strong><span>itens</span></div>
+        <div><strong id="relatorio-total-unidades"></strong><span>unidades</span></div>
+        <div><strong id="relatorio-total-zerados"></strong><span>zerados</span></div>
+      </div>
+      <table id="relatorio-tabela">
+        <thead>
+          <tr><th>Código</th><th>Produto</th><th>Saldo</th></tr>
+        </thead>
+        <tbody id="relatorio-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- LANÇAMENTO RÁPIDO -->
+    <section class="tab-panel" id="tab-lote">
+      <div class="panel">
+        <h2>Movimentação</h2>
+        <p class="hint">Marque um ou mais produtos, informe a quantidade de cada um e lance de uma vez. Use a busca para achar rápido um produto específico.</p>
+        <div class="form-grid form-grid-inline">
+          <select id="lote-tipo">
+            <option value="ENTRADA">Entrada</option>
+            <option value="SAIDA">Saída</option>
+          </select>
+          <input type="date" id="lote-data" required>
+          <input type="text" id="lote-freezer" placeholder="Freezer">
+          <input type="text" id="lote-cliente" placeholder="Cliente/destino" hidden>
+          <select id="lote-local">
+            <option value="NOSSO">Nosso Estoque</option>
+            <option value="BASE01">Base 01</option>
+          </select>
+          <button type="button" class="btn btn-primary" id="lote-enviar">Lançar Selecionados</button>
+        </div>
+        <p class="feedback" id="lote-feedback"></p>
+        <div class="filters">
+          <input type="text" id="lote-busca" placeholder="Buscar por código ou descrição">
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead id="lote-thead">
+              <tr>
+                <th>OK</th>
+                <th data-sort="codigo">Código</th>
+                <th data-sort="descricao">Descrição</th>
+                <th data-sort="marca">Marca</th>
+                <th>Quantidade</th>
+              </tr>
+            </thead>
+            <tbody id="lote-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTAGEM FÍSICA -->
+    <section class="tab-panel" id="tab-contagem">
+      <div class="panel">
+        <h2>Contagem Física</h2>
+        <p class="hint">Digite a quantidade contada fisicamente nos produtos que quiser corrigir e clique em "Ajustar Todos" uma única vez no final.</p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="contagem-ajustar-todos">Ajustar Todos</button>
+        </div>
+        <div class="table-wrapper">
+          <table class="tabela-cartoes-mobile">
+            <thead id="contagem-thead">
+              <tr>
+                <th data-sort="codigo">Código</th>
+                <th data-sort="descricao">Descrição</th>
+                <th data-sort="saldo">Saldo Sistema</th>
+                <th>Contagem Física</th>
+                <th>Diferença</th>
+              </tr>
+            </thead>
+            <tbody id="contagem-body"></tbody>
+          </table>
+        </div>
+        <p class="feedback" id="contagem-feedback"></p>
+      </div>
+    </section>
+
+    <!-- VENDAS: VISÃO GERAL -->
+    <section class="tab-panel" id="tab-vendas">
+      <div class="panel">
+        <h2>Vendas</h2>
+        <p class="hint">Escolha o que deseja fazer.</p>
+        <div class="action-cards-grid">
+          <button type="button" class="action-card" data-goto="vendas-nova">
+            <span class="action-card-icon">🧾</span>
+            <span class="action-card-title">Nova Venda</span>
+            <span class="action-card-desc">Registrar uma venda manual, item a item.</span>
+          </button>
+          <button type="button" class="action-card" data-goto="vendas-registradas">
+            <span class="action-card-icon">📋</span>
+            <span class="action-card-title">Vendas Registradas</span>
+            <span class="action-card-desc">Consultar, filtrar, editar e excluir vendas.</span>
+          </button>
+          <button type="button" class="action-card" data-goto="produtos">
+            <span class="action-card-icon">📦</span>
+            <span class="action-card-title">Produtos</span>
+            <span class="action-card-desc">Ver e cadastrar produtos vendáveis.</span>
+          </button>
+          <button type="button" class="action-card" data-goto="vendas-bling">
+            <span class="action-card-icon">🔗</span>
+            <span class="action-card-title">Integração com Bling</span>
+            <span class="action-card-desc">Conectar e sincronizar pedidos do Bling.</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- VENDAS: NOVA VENDA -->
+    <section class="tab-panel" id="tab-vendas-nova">
+      <div class="panel">
+        <h2 id="venda-form-title">Nova Venda</h2>
+        <form id="venda-form">
+          <input type="hidden" name="id">
+          <div class="form-grid">
+            <select name="tipo_cliente" id="venda-tipo-cliente" required>
+              <option value="" disabled selected>Tipo de Cliente</option>
+              <option value="B2B">B2B</option>
+              <option value="CPF">CPF</option>
+            </select>
+            <input type="text" name="cliente_nome" placeholder="Nome do cliente" required>
+            <input type="date" name="data" required>
+            <input type="text" name="nota_fiscal" placeholder="Nota fiscal (opcional)">
+            <select name="forma_pagamento">
+              <option value="">Forma de pagamento</option>
+              <option value="Pix">Pix</option>
+              <option value="Cartão de Crédito">Cartão de Crédito</option>
+              <option value="Cartão de Débito">Cartão de Débito</option>
+              <option value="Boleto">Boleto</option>
+              <option value="Dinheiro">Dinheiro</option>
+              <option value="Outro">Outro</option>
+            </select>
+            <select name="local" id="venda-local">
+              <option value="NOSSO">Nosso Estoque</option>
+              <option value="BASE01">Base 01</option>
+            </select>
+          </div>
+
+          <div class="venda-entry-row" id="venda-entrada-row">
+            <input type="text" id="venda-entrada-codigo" placeholder="Código do produto" autocomplete="off">
+            <input type="text" id="venda-entrada-descricao" placeholder="Descrição" disabled>
+            <input type="number" id="venda-entrada-qtd" min="1" value="1" placeholder="Qtd">
+            <input type="number" id="venda-entrada-valor" min="0" step="0.01" placeholder="Valor unit. (R$)">
+            <button type="button" class="btn btn-primary btn-small" id="venda-entrada-adicionar">Adicionar</button>
+          </div>
+          <p class="feedback" id="venda-entrada-feedback"></p>
+
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Produto</th>
+                  <th>Qtd</th>
+                  <th>Valor unitário</th>
+                  <th>Total</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody id="venda-itens-body">
+                <tr class="empty-row" id="venda-itens-vazio"><td colspan="6">Nenhum item adicionado ainda.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="cart-total-row">
+            <span>Subtotal</span>
+            <span id="venda-subtotal-preview">R$ 0,00</span>
+          </div>
+          <div class="cart-total-row">
+            <span>Total da Venda</span>
+            <span id="venda-total-preview">R$ 0,00</span>
+          </div>
+
+          <input type="text" name="observacoes" placeholder="Observações (opcional)" style="margin-top: 12px;">
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="venda-submit-btn">Registrar Venda</button>
+            <button type="button" class="btn btn-ghost" id="venda-cancelar" hidden>Cancelar</button>
+          </div>
+        </form>
+        <p class="feedback" id="venda-feedback"></p>
+      </div>
+    </section>
+
+    <!-- VENDAS: VENDAS REGISTRADAS -->
+    <section class="tab-panel" id="tab-vendas-registradas">
+      <div class="summary">
+        <div class="summary-card">
+          <span class="summary-label">Vendas registradas</span>
+          <span class="summary-value" id="vendas-total-qtd">0</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Total vendido (R$)</span>
+          <span class="summary-value" id="vendas-total-valor">0,00</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Ticket médio (R$)</span>
+          <span class="summary-value" id="vendas-ticket-medio">0,00</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Vendas hoje</span>
+          <span class="summary-value" id="vendas-hoje-qtd">0</span>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Vendas no mês</span>
+          <span class="summary-value" id="vendas-mes-qtd">0</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Vendas Registradas</h2>
+          <div class="filters">
+            <input type="text" id="vendas-busca" placeholder="Buscar por cliente, código ou venda...">
+            <select id="vendas-filtro-tipo">
+              <option value="">Todos os tipos</option>
+              <option value="B2B">B2B</option>
+              <option value="CPF">CPF</option>
+            </select>
+            <input type="date" id="vendas-filtro-de">
+            <input type="date" id="vendas-filtro-ate">
+            <button type="button" class="btn btn-ghost btn-small" id="vendas-filtrar">Filtrar</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead id="vendas-thead">
+              <tr>
+                <th data-sort="data">Data</th>
+                <th data-sort="cliente_nome">Cliente</th>
+                <th data-sort="tipo_cliente">Tipo</th>
+                <th>Itens</th>
+                <th data-sort="forma_pagamento">Pagamento</th>
+                <th data-sort="nota_fiscal">Nota Fiscal</th>
+                <th data-sort="valor_total">Valor Total</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="vendas-body"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="vendas-paginacao"></div>
+      </div>
+    </section>
+
+    <!-- VENDAS: INTEGRAÇÃO COM BLING -->
+    <section class="tab-panel" id="tab-vendas-bling">
+      <div class="panel" id="bling-panel">
+        <div class="panel-header">
+          <h2>Integração com o Bling</h2>
+          <span class="status-badge" id="bling-status-badge">Verificando...</span>
+        </div>
+        <p class="hint" id="bling-hint">Verificando configuração...</p>
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" id="bling-conectar-btn" hidden>Conectar ao Bling</button>
+          <button type="button" class="btn btn-primary" id="bling-sincronizar-btn" hidden>Sincronizar Agora</button>
+        </div>
+        <p class="feedback" id="bling-feedback"></p>
+        <div id="bling-resultado" hidden>
+          <p><strong>Pedidos encontrados no período:</strong> <span id="bling-res-encontrados"></span></p>
+          <p><strong>Novos importados:</strong> <span id="bling-res-importados"></span></p>
+          <div id="bling-res-nao-encontrados-wrapper" hidden>
+            <p><strong>Produtos não encontrados (código não bate com nenhum produto cadastrado):</strong></p>
+            <ul id="bling-res-nao-encontrados"></ul>
+          </div>
+          <div id="bling-res-erros-wrapper" hidden>
+            <p><strong>Erros:</strong></p>
+            <ul id="bling-res-erros"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- KITS -->
+    <section class="tab-panel" id="tab-kits">
+      <div class="panel">
+        <h2 id="kit-form-title">Novo Kit</h2>
+        <form id="kit-form">
+          <input type="hidden" name="id">
+          <div class="form-grid">
+            <input type="text" name="codigo" placeholder="Código do kit" required>
+            <input type="text" name="nome" placeholder="Nome do kit" required>
+          </div>
+          <div class="kit-itens" id="kit-itens-wrapper">
+            <div class="kit-item-row">
+              <select class="kit-item-produto"></select>
+              <input type="number" class="kit-item-qtd" min="1" value="1" placeholder="Qtd">
+              <button type="button" class="btn btn-ghost btn-small kit-item-remover">Remover</button>
+            </div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-small" id="kit-add-item">+ Adicionar produto</button>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Salvar Kit</button>
+            <button type="button" class="btn btn-ghost" id="kit-cancelar" hidden>Cancelar edição</button>
+          </div>
+        </form>
+        <p class="feedback" id="kit-feedback"></p>
+      </div>
+
+      <div class="panel" id="kit-saida-panel" hidden>
+        <h2>Dar Saída — <span id="kit-saida-nome"></span></h2>
+        <p class="hint">Isso vai gerar a saída de cada produto do kit, multiplicado pela quantidade informada.</p>
+        <div class="form-grid">
+          <input type="number" id="kit-saida-quantidade" min="1" value="1" placeholder="Quantidade de kits">
+          <input type="date" id="kit-saida-data">
+          <input type="text" id="kit-saida-cliente" placeholder="Cliente/destino">
+          <select id="kit-saida-local">
+            <option value="NOSSO">Nosso Estoque</option>
+            <option value="BASE01">Base 01</option>
+          </select>
+          <button type="button" class="btn btn-primary" id="kit-saida-confirmar">Confirmar Saída</button>
+          <button type="button" class="btn btn-ghost" id="kit-saida-cancelar">Cancelar</button>
+        </div>
+        <p class="feedback" id="kit-saida-feedback"></p>
+      </div>
+
+      <div class="panel">
+        <h2>Kits Cadastrados</h2>
+        <div class="table-wrapper">
+          <table>
+            <thead id="kits-thead">
+              <tr>
+                <th data-sort="codigo">Código</th>
+                <th data-sort="nome">Nome</th>
+                <th>Composição</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="kits-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- HISTÓRICO -->
+    <section class="tab-panel" id="tab-historico">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Histórico de Movimentações</h2>
+          <div class="filters">
+            <select id="historico-tipo">
+              <option value="">Todos os tipos</option>
+              <option value="ENTRADA">Entrada</option>
+              <option value="SAIDA">Saída</option>
+            </select>
+            <input type="date" id="historico-de">
+            <input type="date" id="historico-ate">
+            <button type="button" class="btn btn-ghost btn-small" id="historico-filtrar">Filtrar</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead id="historico-thead">
+              <tr>
+                <th data-sort="data">Data</th>
+                <th data-sort="tipo">Tipo</th>
+                <th data-sort="produto_codigo">Código</th>
+                <th data-sort="produto_descricao">Descrição</th>
+                <th data-sort="quantidade">Quantidade</th>
+                <th>Freezer/Cliente</th>
+                <th data-sort="origem">Origem</th>
+              </tr>
+            </thead>
+            <tbody id="historico-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRODUTOS -->
+    <section class="tab-panel" id="tab-produtos">
+      <div class="panel">
+        <h2 id="produto-form-title">Novo Produto</h2>
+        <form id="produto-form" class="form-grid">
+          <input type="hidden" name="id">
+          <input type="text" name="codigo" placeholder="Código" required>
+          <input type="text" name="descricao" placeholder="Descrição" required>
+          <select name="marca" required>
+            <option value="" disabled selected>Marca</option>
+            <option value="CORADA">CORADA</option>
+            <option value="MEALI">MEALI</option>
+          </select>
+          <select name="linha">
+            <option value="">Linha (opcional)</option>
+            <option value="ESSENCIAL">Essencial</option>
+            <option value="SABOR_TRADICAO">Sabor &amp; Tradição</option>
+            <option value="SELECAO_ESPECIAL">Seleção Especial</option>
+            <option value="PREMIUM">Premium</option>
+          </select>
+          <input type="number" name="preco_b2b" placeholder="Preço B2B" min="0" step="0.01">
+          <button type="submit" class="btn btn-primary">Salvar</button>
+          <button type="button" class="btn btn-ghost" id="produto-cancelar" hidden>Cancelar edição</button>
+        </form>
+        <p class="feedback" id="produto-feedback"></p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Produtos Cadastrados</h2>
+          <div class="filters">
+            <input type="text" id="produto-busca" placeholder="Buscar por código ou descrição">
+            <select id="produto-filtro-marca">
+              <option value="">Todas as marcas</option>
+              <option value="CORADA">CORADA</option>
+              <option value="MEALI">MEALI</option>
+            </select>
+            <label class="checkbox-label">
+              <input type="checkbox" id="produto-mostrar-arquivados">
+              Mostrar arquivados
+            </label>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead id="produtos-thead">
+              <tr>
+                <th data-sort="codigo">Código</th>
+                <th data-sort="descricao">Descrição</th>
+                <th data-sort="marca">Marca</th>
+                <th data-sort="linha">Linha</th>
+                <th data-sort="preco_b2b">Preço B2B</th>
+                <th data-sort="ativo">Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="produtos-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/perfil.js"></script>
+  <script src="js/produtos.js"></script>
+  <script src="js/vendas.js"></script>
+  <script src="js/bling.js"></script>
+  <script src="js/lote.js"></script>
+  <script src="js/kits.js"></script>
+  <script src="js/estoque.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="js/relatorio.js"></script>
+  <script src="js/contagem.js"></script>
+  <script src="js/historico.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
