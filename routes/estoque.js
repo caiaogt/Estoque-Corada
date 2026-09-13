@@ -18,7 +18,8 @@ router.get('/', wrap(async (req, res) => {
       COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND m.local = 'NOSSO' THEN m.quantidade ELSE 0 END), 0)::int AS entradas_nosso,
       COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND m.local = 'NOSSO' THEN m.quantidade ELSE 0 END), 0)::int AS saidas_nosso,
       COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND m.local = 'BASE01' THEN m.quantidade ELSE 0 END), 0)::int AS entradas_base01,
-      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND m.local = 'BASE01' THEN m.quantidade ELSE 0 END), 0)::int AS saidas_base01
+      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND m.local = 'BASE01' THEN m.quantidade ELSE 0 END), 0)::int AS saidas_base01,
+      MAX(CASE WHEN m.tipo = 'SAIDA' THEN m.data END) AS ultima_saida
     FROM produtos p
     LEFT JOIN movimentacoes m ON m.produto_id = p.id
     WHERE 1=1

@@ -14,8 +14,22 @@ const dashDicaTexto = document.getElementById('dash-dica-texto');
 let ultimoEstoqueDashboard = [];
 let chartEvolucaoInstancia = null;
 
+function calcularProdutosParados(estoque) {
+  const hojeMs = Date.now();
+  return estoque
+    .filter((p) => p.saldo > 0)
+    .map((p) => {
+      const diasSemSaida = p.ultima_saida
+        ? Math.floor((hojeMs - new Date(`${p.ultima_saida}T00:00:00`).getTime()) / (24 * 60 * 60 * 1000))
+        : Infinity;
+      return { ...p, dias_sem_saida: diasSemSaida };
+    })
+    .sort((a, b) => b.dias_sem_saida - a.dias_sem_saida)
+    .slice(0, 5);
+}
+
 const dashParadosSortable = createSortable(document.getElementById('dash-parados-thead'), () => {
-  const parados = ultimoEstoqueDashboard.filter((p) => p.total_saidas === 0);
+  const parados = calcularProdutosParados(ultimoEstoqueDashboard);
   renderParados(dashParadosSortable.sort(parados));
 });
 
@@ -77,16 +91,19 @@ function renderParados(produtos) {
   dashParadosBody.innerHTML = '';
 
   if (produtos.length === 0) {
-    dashParadosBody.innerHTML = '<tr class="empty-row"><td colspan="3">Nenhum produto parado — todos os produtos ativos já tiveram saída.</td></tr>';
+    dashParadosBody.innerHTML = '<tr class="empty-row"><td colspan="3">Nenhum produto com estoque parado no momento.</td></tr>';
     return;
   }
 
   produtos.forEach((p) => {
     const row = document.createElement('tr');
+    const ultimaSaidaTexto = p.ultima_saida
+      ? `${formatarDataBR(p.ultima_saida)} (há ${p.dias_sem_saida} dia${p.dias_sem_saida === 1 ? '' : 's'})`
+      : 'Nunca saiu';
     row.innerHTML = `
       <td>${p.codigo} — ${p.descricao}</td>
       <td>${p.saldo}</td>
-      <td>—</td>
+      <td>${ultimaSaidaTexto}</td>
     `;
     dashParadosBody.appendChild(row);
   });
@@ -197,13 +214,13 @@ async function carregarDashboard() {
     .slice(0, 5);
   renderRankedList(rankingSaidas, topSaidas, 'total_saidas');
 
-  const parados = estoque.filter((p) => p.total_saidas === 0);
+  const parados = calcularProdutosParados(estoque);
   renderParados(dashParadosSortable.sort(parados));
 
   dashDicaTexto.textContent =
     parados.length > 0
-      ? `Você tem ${parados.length} produto(s) sem nenhuma saída registrada. Revise os produtos parados e considere criar promoções para aumentar a rotatividade.`
-      : 'Todos os produtos ativos já tiveram saída — bom giro de estoque!';
+      ? `Os produtos com estoque parado há mais tempo estão na tabela abaixo. Revise-os e considere criar promoções para aumentar a rotatividade.`
+      : 'Nenhum produto com estoque parado no momento — bom giro de estoque!';
 
   const de60 = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const de30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);

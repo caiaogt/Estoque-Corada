@@ -960,7 +960,17 @@ h1, h2, h3,
   }
 
   .bar-row {
-    grid-template-columns: 110px 1fr 50px;
+    grid-template-columns: 110px 1fr 60px;
+  }
+
+  .bar-value,
+  .bar-value-stack {
+    min-width: 0;
+  }
+
+  .bar-value-stack small {
+    white-space: normal;
+    text-align: right;
   }
 }
 
