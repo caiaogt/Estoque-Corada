@@ -1,23 +1,24 @@
 const express = require('express');
 const { db } = require('../db');
+const wrap = require('./wrap');
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
+router.get('/', wrap(async (req, res) => {
   const { ativo, marca, q } = req.query;
   const mesAtual = new Date().toISOString().slice(0, 7);
 
   let sql = `
     SELECT
       p.id, p.codigo, p.descricao, p.marca, p.linha, p.preco_b2b, p.ativo,
-      COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' THEN m.quantidade ELSE 0 END), 0) AS total_entradas,
-      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' THEN m.quantidade ELSE 0 END), 0) AS total_saidas,
-      COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND SUBSTR(m.data, 1, 7) = ? THEN m.quantidade ELSE 0 END), 0) AS entradas_mes,
-      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND SUBSTR(m.data, 1, 7) = ? THEN m.quantidade ELSE 0 END), 0) AS saidas_mes,
-      COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND m.local = 'NOSSO' THEN m.quantidade ELSE 0 END), 0) AS entradas_nosso,
-      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND m.local = 'NOSSO' THEN m.quantidade ELSE 0 END), 0) AS saidas_nosso,
-      COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND m.local = 'BASE01' THEN m.quantidade ELSE 0 END), 0) AS entradas_base01,
-      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND m.local = 'BASE01' THEN m.quantidade ELSE 0 END), 0) AS saidas_base01
+      COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' THEN m.quantidade ELSE 0 END), 0)::int AS total_entradas,
+      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' THEN m.quantidade ELSE 0 END), 0)::int AS total_saidas,
+      COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND SUBSTR(m.data, 1, 7) = ? THEN m.quantidade ELSE 0 END), 0)::int AS entradas_mes,
+      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND SUBSTR(m.data, 1, 7) = ? THEN m.quantidade ELSE 0 END), 0)::int AS saidas_mes,
+      COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND m.local = 'NOSSO' THEN m.quantidade ELSE 0 END), 0)::int AS entradas_nosso,
+      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND m.local = 'NOSSO' THEN m.quantidade ELSE 0 END), 0)::int AS saidas_nosso,
+      COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND m.local = 'BASE01' THEN m.quantidade ELSE 0 END), 0)::int AS entradas_base01,
+      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND m.local = 'BASE01' THEN m.quantidade ELSE 0 END), 0)::int AS saidas_base01
     FROM produtos p
     LEFT JOIN movimentacoes m ON m.produto_id = p.id
     WHERE 1=1
@@ -39,7 +40,7 @@ router.get('/', (req, res) => {
 
   sql += ' GROUP BY p.id ORDER BY p.descricao';
 
-  const rows = db.prepare(sql).all(...params);
+  const rows = await db.prepare(sql).all(...params);
   const estoque = rows.map((r) => {
     const saldo = r.total_entradas - r.total_saidas;
     const saldo_nosso = r.entradas_nosso - r.saidas_nosso;
@@ -54,6 +55,6 @@ router.get('/', (req, res) => {
   });
 
   res.json(estoque);
-});
+}));
 
 module.exports = router;

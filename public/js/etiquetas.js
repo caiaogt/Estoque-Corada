@@ -197,6 +197,33 @@ function montarEtiquetasParaImpressao(op) {
   etiquetasPrintArea.innerHTML = `<div class="etiqueta-print-grid">${label.repeat(op.quantidade)}</div>`;
 }
 
+// O site roda na nuvem, mas a impressora Zebra está ligada num computador específico.
+// Por isso, quem realmente manda o ZPL pra impressora é um agentinho local (print-bridge/)
+// rodando em http://localhost — o navegador consegue falar com ele mesmo com a página
+// carregada de outro domínio, desde que a impressão seja feita a partir desse computador.
+const PRINT_BRIDGE_URL = window.PRINT_BRIDGE_URL || 'http://localhost:4001';
+
+async function tentarImprimirLocal(op) {
+  try {
+    const res = await fetch(`${PRINT_BRIDGE_URL}/imprimir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        produto_codigo: op.produto_codigo,
+        quantidade: op.quantidade,
+        data_fabricacao: op.data_fabricacao,
+        data_validade: op.data_validade,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.impresso) return { status: 'impresso' };
+    if (res.status === 404 && data.motivo === 'sem-template') return { status: 'sem-template' };
+    return { status: 'falhou', motivo: data.error || 'Erro desconhecido ao imprimir.' };
+  } catch {
+    return { status: 'agente-offline' };
+  }
+}
+
 function resetarFormularioEtiqueta() {
   etiquetaProdutoSelect.value = '';
   etiquetaQuantidade.value = '';
@@ -217,6 +244,18 @@ etiquetaPreviewConfirmar.addEventListener('click', async () => {
   etiquetaPreviewConfirmar.disabled = true;
 
   try {
+    const resultadoImpressao = await tentarImprimirLocal(etiquetaOperacaoAtual);
+
+    if (resultadoImpressao.status === 'falhou') {
+      showFeedback(
+        etiquetaPreviewFeedback,
+        `Não consegui enviar a etiqueta para a impressora Zebra (${resultadoImpressao.motivo}). Nada foi registrado no estoque — tente novamente.`
+      );
+      return;
+    }
+
+    const impressoDireto = resultadoImpressao.status === 'impresso';
+
     const registro = await api('/etiquetas/imprimir', {
       method: 'POST',
       body: JSON.stringify({
@@ -226,6 +265,7 @@ etiquetaPreviewConfirmar.addEventListener('click', async () => {
         impresso_por: etiquetaOperacaoAtual.impresso_por,
         lancar_estoque: etiquetaOperacaoAtual.lancar_estoque,
         client_op_id: etiquetaOperacaoAtual.client_op_id,
+        impresso_direto: impressoDireto,
       }),
     });
 
@@ -241,9 +281,14 @@ etiquetaPreviewConfirmar.addEventListener('click', async () => {
       : ' — estoque não foi alterado (opção desmarcada).';
     // Na impressão direta na Zebra não dá pra confirmar 100% que o papel saiu de verdade
     // (só pegamos falhas rápidas de configuração) — por isso o texto é "enviada(s)", não "impressa(s)".
-    const mensagemImpressao = registro.impresso_direto
-      ? `✓ ${quantidadeImpressa} etiqueta(s) enviada(s) para a impressora`
-      : `✓ ${quantidadeImpressa} etiqueta(s) impressa(s) com sucesso`;
+    let mensagemImpressao;
+    if (registro.impresso_direto) {
+      mensagemImpressao = `✓ ${quantidadeImpressa} etiqueta(s) enviada(s) para a impressora`;
+    } else if (resultadoImpressao.status === 'agente-offline') {
+      mensagemImpressao = `⚠ Agente de impressão local não encontrado — abrindo impressão do navegador para ${quantidadeImpressa} etiqueta(s)`;
+    } else {
+      mensagemImpressao = `✓ ${quantidadeImpressa} etiqueta(s) impressa(s) com sucesso`;
+    }
     showFeedback(etiquetaFeedback, `${mensagemImpressao}${mensagemEstoque}`, true);
 
     resetarFormularioEtiqueta();

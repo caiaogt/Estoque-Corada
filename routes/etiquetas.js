@@ -1,6 +1,6 @@
 const express = require('express');
 const { db, transaction } = require('../db');
-const { existeTemplate, imprimirEtiquetaZebra } = require('../services/zplEtiqueta');
+const wrap = require('./wrap');
 
 const router = express.Router();
 
@@ -17,7 +17,7 @@ function somarMeses(dataISO, meses) {
   return `${anoFinal}-${pad(mesFinal)}-${pad(diaFinal)}`;
 }
 
-function buscarRegistro(id) {
+async function buscarRegistro(id) {
   return db
     .prepare(
       `SELECT e.*, p.codigo AS produto_codigo, p.descricao AS produto_descricao, p.marca AS produto_marca,
@@ -30,9 +30,9 @@ function buscarRegistro(id) {
     .get(id);
 }
 
-router.get('/', (req, res) => {
+router.get('/', wrap(async (req, res) => {
   const { limit } = req.query;
-  const rows = db
+  const rows = await db
     .prepare(
       `SELECT e.*, p.codigo AS produto_codigo, p.descricao AS produto_descricao, p.marca AS produto_marca,
               u.usuario AS usuario_login, u.nome_exibicao AS usuario_nome
@@ -44,25 +44,25 @@ router.get('/', (req, res) => {
     )
     .all(Math.min(Number(limit) || 200, 1000));
   res.json(rows);
-});
+}));
 
-router.post('/calcular-validade', (req, res) => {
+router.post('/calcular-validade', wrap(async (req, res) => {
   const { produto_id, data_fabricacao } = req.body;
-  const produto = db.prepare('SELECT * FROM produtos WHERE id = ?').get(produto_id);
+  const produto = await db.prepare('SELECT * FROM produtos WHERE id = ?').get(produto_id);
   if (!produto) return res.status(404).json({ error: 'Produto não encontrado.' });
   if (!data_fabricacao) return res.status(400).json({ error: 'Data de fabricação é obrigatória.' });
   if (!produto.validade_meses) {
     return res.json({ data_validade: null, validade_meses: null });
   }
   res.json({ data_validade: somarMeses(data_fabricacao, produto.validade_meses), validade_meses: produto.validade_meses });
-});
+}));
 
 router.get('/nomes', (req, res) => {
   res.json(NOMES_VALIDOS);
 });
 
-router.post('/imprimir', async (req, res) => {
-  const { produto_id, quantidade, data_fabricacao, impresso_por, lancar_estoque, client_op_id } = req.body;
+router.post('/imprimir', wrap(async (req, res) => {
+  const { produto_id, quantidade, data_fabricacao, impresso_por, lancar_estoque, client_op_id, impresso_direto } = req.body;
   const lancarEstoque = lancar_estoque !== false;
 
   if (!produto_id) return res.status(400).json({ error: 'Selecione um produto.' });
@@ -78,12 +78,12 @@ router.post('/imprimir', async (req, res) => {
 
   // Idempotência: se essa mesma operação já foi processada (ex.: clique duplo, reenvio de rede),
   // devolve o registro já criado em vez de lançar tudo de novo no estoque.
-  const existente = db.prepare('SELECT id FROM etiquetas_impressao WHERE client_op_id = ?').get(client_op_id);
+  const existente = await db.prepare('SELECT id FROM etiquetas_impressao WHERE client_op_id = ?').get(client_op_id);
   if (existente) {
-    return res.status(200).json({ ...buscarRegistro(existente.id), duplicado: true });
+    return res.status(200).json({ ...(await buscarRegistro(existente.id)), duplicado: true });
   }
 
-  const produto = db.prepare('SELECT * FROM produtos WHERE id = ?').get(produto_id);
+  const produto = await db.prepare('SELECT * FROM produtos WHERE id = ?').get(produto_id);
   if (!produto) return res.status(404).json({ error: 'Produto não encontrado.' });
   if (!produto.validade_meses) {
     return res.status(400).json({
@@ -93,31 +93,23 @@ router.post('/imprimir', async (req, res) => {
 
   const dataValidade = somarMeses(data_fabricacao, produto.validade_meses);
 
-  // Se existe o modelo ZPL real desse produto, manda pra impressora Zebra ANTES de mexer no
-  // estoque: se a impressão falhar, nada fica registrado (evita "fantasma" de estoque sem etiqueta).
-  let impressoDireto = false;
-  if (existeTemplate(produto.codigo)) {
-    try {
-      await imprimirEtiquetaZebra(produto.codigo, qtd, { dataFabricacao: data_fabricacao, dataValidade });
-      impressoDireto = true;
-    } catch (err) {
-      return res.status(502).json({
-        error: `Não consegui enviar a etiqueta para a impressora Zebra (${err.message}). Nada foi registrado no estoque — tente novamente.`,
-      });
-    }
-  }
+  // A impressão em si acontece antes desta chamada, num agente local rodando no
+  // computador ligado à impressora Zebra (este servidor roda na nuvem e não tem
+  // acesso a ela). O front-end informa aqui se o envio pra impressora deu certo,
+  // só pra guardarmos isso no histórico.
+  const impressoDireto = Boolean(impresso_direto);
 
-  const criadoId = transaction(() => {
+  const criadoId = await transaction(async () => {
     let movimentacaoId = null;
 
     if (lancarEstoque) {
-      const movInfo = db
+      const movInfo = await db
         .prepare('INSERT INTO movimentacoes (produto_id, tipo, quantidade, data, local, origem) VALUES (?, ?, ?, ?, ?, ?)')
         .run(produto_id, 'ENTRADA', qtd, data_fabricacao, 'NOSSO', 'ETIQUETA');
       movimentacaoId = movInfo.lastInsertRowid;
     }
 
-    const etiquetaInfo = db
+    const etiquetaInfo = await db
       .prepare(
         `INSERT INTO etiquetas_impressao
           (produto_id, quantidade, data_fabricacao, data_validade, movimentacao_id, usuario_id, impresso_por, client_op_id)
@@ -128,7 +120,7 @@ router.post('/imprimir', async (req, res) => {
     return etiquetaInfo.lastInsertRowid;
   });
 
-  res.status(201).json({ ...buscarRegistro(criadoId), impresso_direto: impressoDireto, lancado_estoque: lancarEstoque });
-});
+  res.status(201).json({ ...(await buscarRegistro(criadoId)), impresso_direto: impressoDireto, lancado_estoque: lancarEstoque });
+}));
 
 module.exports = router;

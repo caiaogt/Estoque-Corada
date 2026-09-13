@@ -1,5 +1,6 @@
 const express = require('express');
 const { db, transaction } = require('../db');
+const wrap = require('./wrap');
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ function validarLancamento({ tipo, quantidade, data, freezer, cliente, local }) 
   return null;
 }
 
-router.get('/', (req, res) => {
+router.get('/', wrap(async (req, res) => {
   const { produto_id, tipo, data_de, data_ate, local, limit } = req.query;
   let sql = `
     SELECT m.*, p.codigo AS produto_codigo, p.descricao AS produto_descricao, p.marca AS produto_marca
@@ -50,30 +51,30 @@ router.get('/', (req, res) => {
   sql += ' LIMIT ?';
   params.push(Math.min(Number(limit) || 200, 1000));
 
-  const movimentacoes = db.prepare(sql).all(...params);
+  const movimentacoes = await db.prepare(sql).all(...params);
   res.json(movimentacoes);
-});
+}));
 
-router.post('/', (req, res) => {
+router.post('/', wrap(async (req, res) => {
   const { produto_id, tipo, quantidade, data, freezer, cliente, local } = req.body;
 
   const erro = validarLancamento({ tipo, quantidade, data, freezer, cliente, local });
   if (erro) return res.status(400).json({ error: erro });
 
-  const produto = db.prepare('SELECT * FROM produtos WHERE id = ?').get(produto_id);
+  const produto = await db.prepare('SELECT * FROM produtos WHERE id = ?').get(produto_id);
   if (!produto) return res.status(404).json({ error: 'Produto não encontrado.' });
 
-  const info = db
+  const info = await db
     .prepare(
       'INSERT INTO movimentacoes (produto_id, tipo, quantidade, data, freezer, cliente, local, origem) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     )
     .run(produto_id, tipo, Number(quantidade), data, freezer || null, cliente || null, local || 'NOSSO', 'MANUAL');
 
-  const movimentacao = db.prepare('SELECT * FROM movimentacoes WHERE id = ?').get(info.lastInsertRowid);
+  const movimentacao = await db.prepare('SELECT * FROM movimentacoes WHERE id = ?').get(info.lastInsertRowid);
   res.status(201).json(movimentacao);
-});
+}));
 
-router.post('/lote', (req, res) => {
+router.post('/lote', wrap(async (req, res) => {
   const { tipo, data, freezer, cliente, local, itens } = req.body;
 
   if (tipo !== 'ENTRADA' && tipo !== 'SAIDA') {
@@ -98,12 +99,12 @@ router.post('/lote', (req, res) => {
   );
 
   try {
-    const criados = transaction(() => {
+    const criados = await transaction(async () => {
       const resultado = [];
       for (const item of itens) {
-        const produto = db.prepare('SELECT id FROM produtos WHERE id = ?').get(item.produto_id);
+        const produto = await db.prepare('SELECT id FROM produtos WHERE id = ?').get(item.produto_id);
         if (!produto) throw new Error(`Produto ${item.produto_id} não encontrado.`);
-        const info = insertStmt.run(
+        const info = await insertStmt.run(
           item.produto_id,
           tipo,
           Number(item.quantidade),
@@ -122,20 +123,20 @@ router.post('/lote', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
-});
+}));
 
-router.delete('/:id', (req, res) => {
-  const mov = db.prepare('SELECT * FROM movimentacoes WHERE id = ?').get(req.params.id);
+router.delete('/:id', wrap(async (req, res) => {
+  const mov = await db.prepare('SELECT * FROM movimentacoes WHERE id = ?').get(req.params.id);
   if (!mov) return res.status(404).json({ error: 'Movimentação não encontrada.' });
 
-  transaction(() => {
+  await transaction(async () => {
     // Se essa movimentação veio de uma impressão de etiqueta, desvincula em vez de apagar o
     // histórico da impressão — só o efeito no estoque é desfeito.
-    db.prepare('UPDATE etiquetas_impressao SET movimentacao_id = NULL WHERE movimentacao_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM movimentacoes WHERE id = ?').run(req.params.id);
+    await db.prepare('UPDATE etiquetas_impressao SET movimentacao_id = NULL WHERE movimentacao_id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM movimentacoes WHERE id = ?').run(req.params.id);
   });
 
   res.status(204).end();
-});
+}));
 
 module.exports = router;

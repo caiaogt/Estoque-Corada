@@ -1,12 +1,13 @@
 const express = require('express');
 const { db, transaction } = require('../db');
+const wrap = require('./wrap');
 
 const router = express.Router();
 
-function carregarVenda(id) {
-  const venda = db.prepare('SELECT * FROM vendas WHERE id = ?').get(id);
+async function carregarVenda(id) {
+  const venda = await db.prepare('SELECT * FROM vendas WHERE id = ?').get(id);
   if (!venda) return null;
-  const itens = db
+  const itens = await db
     .prepare(
       `SELECT vi.*, p.codigo AS produto_codigo, p.descricao AS produto_descricao
        FROM venda_itens vi
@@ -17,7 +18,7 @@ function carregarVenda(id) {
   return { ...venda, itens };
 }
 
-router.get('/', (req, res) => {
+router.get('/', wrap(async (req, res) => {
   const { data_de, data_ate, tipo_cliente, local } = req.query;
   let sql = 'SELECT * FROM vendas WHERE 1=1';
   const params = [];
@@ -41,18 +42,18 @@ router.get('/', (req, res) => {
 
   sql += ' ORDER BY data DESC, id DESC';
 
-  const vendas = db.prepare(sql).all(...params);
-  const vendasComItens = vendas.map((v) => carregarVenda(v.id));
+  const vendas = await db.prepare(sql).all(...params);
+  const vendasComItens = await Promise.all(vendas.map((v) => carregarVenda(v.id)));
   res.json(vendasComItens);
-});
+}));
 
-router.get('/:id', (req, res) => {
-  const venda = carregarVenda(req.params.id);
+router.get('/:id', wrap(async (req, res) => {
+  const venda = await carregarVenda(req.params.id);
   if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
   res.json(venda);
-});
+}));
 
-router.post('/', (req, res) => {
+router.post('/', wrap(async (req, res) => {
   const { data, tipo_cliente, cliente_nome, nota_fiscal, forma_pagamento, local, observacoes, desconto, itens } = req.body;
 
   if (!data) return res.status(400).json({ error: 'Data é obrigatória.' });
@@ -79,12 +80,12 @@ router.post('/', (req, res) => {
   }
 
   try {
-    const vendaId = transaction(() => {
+    const vendaId = await transaction(async () => {
       let subtotalVenda = 0;
       const itensResolvidos = [];
 
       for (const item of itens) {
-        const produto = db.prepare('SELECT id FROM produtos WHERE id = ?').get(item.produto_id);
+        const produto = await db.prepare('SELECT id FROM produtos WHERE id = ?').get(item.produto_id);
         if (!produto) throw new Error(`Produto ${item.produto_id} não encontrado.`);
 
         const quantidade = Number(item.quantidade);
@@ -97,7 +98,7 @@ router.post('/', (req, res) => {
       const descontoValor = Math.min(Number(desconto) || 0, subtotalVenda);
       const valorTotal = Number((subtotalVenda - descontoValor).toFixed(2));
 
-      const infoVenda = db
+      const infoVenda = await db
         .prepare(
           `INSERT INTO vendas (data, tipo_cliente, cliente_nome, nota_fiscal, forma_pagamento, local, valor_total, desconto, observacoes)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -124,8 +125,8 @@ router.post('/', (req, res) => {
       );
 
       for (const item of itensResolvidos) {
-        insertItem.run(novaVendaId, item.produto_id, item.quantidade, item.valorUnitario, item.subtotal);
-        insertMovimentacao.run(
+        await insertItem.run(novaVendaId, item.produto_id, item.quantidade, item.valorUnitario, item.subtotal);
+        await insertMovimentacao.run(
           item.produto_id,
           'SAIDA',
           item.quantidade,
@@ -140,15 +141,15 @@ router.post('/', (req, res) => {
       return novaVendaId;
     });
 
-    res.status(201).json(carregarVenda(vendaId));
+    res.status(201).json(await carregarVenda(vendaId));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
-});
+}));
 
-router.put('/:id', (req, res) => {
+router.put('/:id', wrap(async (req, res) => {
   const { data, tipo_cliente, cliente_nome, nota_fiscal, forma_pagamento, local, observacoes, desconto, itens } = req.body;
-  const venda = db.prepare('SELECT * FROM vendas WHERE id = ?').get(req.params.id);
+  const venda = await db.prepare('SELECT * FROM vendas WHERE id = ?').get(req.params.id);
   if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
 
   if (!data) return res.status(400).json({ error: 'Data é obrigatória.' });
@@ -175,9 +176,9 @@ router.put('/:id', (req, res) => {
   }
 
   try {
-    transaction(() => {
-      db.prepare('DELETE FROM movimentacoes WHERE venda_id = ?').run(req.params.id);
-      db.prepare('DELETE FROM venda_itens WHERE venda_id = ?').run(req.params.id);
+    await transaction(async () => {
+      await db.prepare('DELETE FROM movimentacoes WHERE venda_id = ?').run(req.params.id);
+      await db.prepare('DELETE FROM venda_itens WHERE venda_id = ?').run(req.params.id);
 
       let subtotalVenda = 0;
       const insertItem = db.prepare(
@@ -188,7 +189,7 @@ router.put('/:id', (req, res) => {
       );
 
       for (const item of itens) {
-        const produto = db.prepare('SELECT id FROM produtos WHERE id = ?').get(item.produto_id);
+        const produto = await db.prepare('SELECT id FROM produtos WHERE id = ?').get(item.produto_id);
         if (!produto) throw new Error(`Produto ${item.produto_id} não encontrado.`);
 
         const quantidade = Number(item.quantidade);
@@ -196,8 +197,8 @@ router.put('/:id', (req, res) => {
         const subtotal = Number((quantidade * valorUnitario).toFixed(2));
         subtotalVenda += subtotal;
 
-        insertItem.run(req.params.id, item.produto_id, quantidade, valorUnitario, subtotal);
-        insertMovimentacao.run(
+        await insertItem.run(req.params.id, item.produto_id, quantidade, valorUnitario, subtotal);
+        await insertMovimentacao.run(
           item.produto_id,
           'SAIDA',
           quantidade,
@@ -212,54 +213,56 @@ router.put('/:id', (req, res) => {
       const descontoValor = Math.min(Number(desconto) || 0, subtotalVenda);
       const valorTotal = Number((subtotalVenda - descontoValor).toFixed(2));
 
-      db.prepare(
-        `UPDATE vendas SET data = ?, tipo_cliente = ?, cliente_nome = ?, nota_fiscal = ?, forma_pagamento = ?, local = ?, valor_total = ?, desconto = ?, observacoes = ?
-         WHERE id = ?`
-      ).run(
-        data,
-        tipo_cliente,
-        cliente_nome.trim(),
-        nota_fiscal ? nota_fiscal.trim() : null,
-        forma_pagamento || null,
-        local || 'NOSSO',
-        valorTotal,
-        Number(descontoValor.toFixed(2)),
-        observacoes ? observacoes.trim() : null,
-        req.params.id
-      );
+      await db
+        .prepare(
+          `UPDATE vendas SET data = ?, tipo_cliente = ?, cliente_nome = ?, nota_fiscal = ?, forma_pagamento = ?, local = ?, valor_total = ?, desconto = ?, observacoes = ?
+           WHERE id = ?`
+        )
+        .run(
+          data,
+          tipo_cliente,
+          cliente_nome.trim(),
+          nota_fiscal ? nota_fiscal.trim() : null,
+          forma_pagamento || null,
+          local || 'NOSSO',
+          valorTotal,
+          Number(descontoValor.toFixed(2)),
+          observacoes ? observacoes.trim() : null,
+          req.params.id
+        );
     });
 
-    res.json(carregarVenda(req.params.id));
+    res.json(await carregarVenda(req.params.id));
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
-});
+}));
 
 const STATUS_VALIDOS = ['NOVO', 'ENTREGUE', 'CANCELADO'];
 
-router.patch('/:id/status', (req, res) => {
+router.patch('/:id/status', wrap(async (req, res) => {
   const { status } = req.body;
-  const venda = db.prepare('SELECT * FROM vendas WHERE id = ?').get(req.params.id);
+  const venda = await db.prepare('SELECT * FROM vendas WHERE id = ?').get(req.params.id);
   if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
   if (!STATUS_VALIDOS.includes(status)) {
     return res.status(400).json({ error: 'Status inválido.' });
   }
 
-  db.prepare('UPDATE vendas SET status = ? WHERE id = ?').run(status, req.params.id);
-  res.json(carregarVenda(req.params.id));
-});
+  await db.prepare('UPDATE vendas SET status = ? WHERE id = ?').run(status, req.params.id);
+  res.json(await carregarVenda(req.params.id));
+}));
 
-router.delete('/:id', (req, res) => {
-  const venda = db.prepare('SELECT * FROM vendas WHERE id = ?').get(req.params.id);
+router.delete('/:id', wrap(async (req, res) => {
+  const venda = await db.prepare('SELECT * FROM vendas WHERE id = ?').get(req.params.id);
   if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
 
-  transaction(() => {
-    db.prepare('DELETE FROM movimentacoes WHERE venda_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM venda_itens WHERE venda_id = ?').run(req.params.id);
-    db.prepare('DELETE FROM vendas WHERE id = ?').run(req.params.id);
+  await transaction(async () => {
+    await db.prepare('DELETE FROM movimentacoes WHERE venda_id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM venda_itens WHERE venda_id = ?').run(req.params.id);
+    await db.prepare('DELETE FROM vendas WHERE id = ?').run(req.params.id);
   });
 
   res.json({ ok: true });
-});
+}));
 
 module.exports = router;

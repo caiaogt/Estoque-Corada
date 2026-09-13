@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { db, transaction } = require('../db');
+const wrap = require('./wrap');
 
 const router = express.Router();
 
@@ -19,17 +20,19 @@ function authHeaderBasic() {
   return `Basic ${Buffer.from(raw).toString('base64')}`;
 }
 
-function getConfig() {
+async function getConfig() {
   return db.prepare('SELECT * FROM bling_config WHERE id = 1').get();
 }
 
-function salvarTokens(tokenJson) {
+async function salvarTokens(tokenJson) {
   const expiresAt = new Date(Date.now() + tokenJson.expires_in * 1000).toISOString();
-  db.prepare(
-    `INSERT INTO bling_config (id, access_token, refresh_token, expires_at, updated_em)
-     VALUES (1, ?, ?, ?, datetime('now'))
-     ON CONFLICT(id) DO UPDATE SET access_token = excluded.access_token, refresh_token = excluded.refresh_token, expires_at = excluded.expires_at, updated_em = datetime('now')`
-  ).run(tokenJson.access_token, tokenJson.refresh_token, expiresAt);
+  await db
+    .prepare(
+      `INSERT INTO bling_config (id, access_token, refresh_token, expires_at, updated_em)
+       VALUES (1, ?, ?, ?, NOW())
+       ON CONFLICT(id) DO UPDATE SET access_token = excluded.access_token, refresh_token = excluded.refresh_token, expires_at = excluded.expires_at, updated_em = NOW()`
+    )
+    .run(tokenJson.access_token, tokenJson.refresh_token, expiresAt);
 }
 
 function extrairMensagemErroBling(json) {
@@ -81,7 +84,7 @@ async function renovarToken(refreshToken) {
 }
 
 async function obterAccessTokenValido() {
-  const config = getConfig();
+  const config = await getConfig();
   if (!config || !config.access_token) {
     throw new Error('BLING_NAO_CONECTADO');
   }
@@ -92,7 +95,7 @@ async function obterAccessTokenValido() {
   }
 
   const novoToken = await renovarToken(config.refresh_token);
-  salvarTokens(novoToken);
+  await salvarTokens(novoToken);
   return novoToken.access_token;
 }
 
@@ -126,12 +129,12 @@ const SITUACAO_NFE = {
   11: 'Bloqueada',
 };
 
-router.get('/vendas/:vendaId/nota', async (req, res) => {
+router.get('/vendas/:vendaId/nota', wrap(async (req, res) => {
   if (!credenciaisConfiguradas()) {
     return res.status(400).json({ error: 'Credenciais do Bling não configuradas no arquivo .env.' });
   }
 
-  const venda = db.prepare('SELECT id, bling_pedido_id FROM vendas WHERE id = ?').get(req.params.vendaId);
+  const venda = await db.prepare('SELECT id, bling_pedido_id FROM vendas WHERE id = ?').get(req.params.vendaId);
   if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
   if (!venda.bling_pedido_id) {
     return res.status(400).json({ error: 'Esta venda não está vinculada a um pedido do Bling.' });
@@ -172,16 +175,16 @@ router.get('/vendas/:vendaId/nota', async (req, res) => {
     }
     res.status(502).json({ error: `Erro ao buscar nota fiscal no Bling: ${err.message}` });
   }
-});
+}));
 
-router.get('/status', (req, res) => {
-  const config = getConfig();
+router.get('/status', wrap(async (req, res) => {
+  const config = await getConfig();
   res.json({
     configurado: credenciaisConfiguradas(),
     conectado: Boolean(config && config.access_token),
     ultima_sincronizacao: config ? config.last_sync_at : null,
   });
-});
+}));
 
 router.get('/connect', (req, res) => {
   if (!credenciaisConfiguradas()) {
@@ -196,7 +199,7 @@ router.get('/connect', (req, res) => {
   res.redirect(url.toString());
 });
 
-router.get('/callback', async (req, res) => {
+router.get('/callback', wrap(async (req, res) => {
   const { code, state } = req.query;
 
   if (!state || state !== estadoOAuthPendente) {
@@ -210,19 +213,19 @@ router.get('/callback', async (req, res) => {
 
   try {
     const tokenJson = await trocarCodePorToken(code);
-    salvarTokens(tokenJson);
+    await salvarTokens(tokenJson);
     res.redirect('/?bling=conectado');
   } catch (err) {
     res.status(400).send(`Erro ao conectar com o Bling: ${err.message}`);
   }
-});
+}));
 
-router.post('/sync', async (req, res) => {
+router.post('/sync', wrap(async (req, res) => {
   if (!credenciaisConfiguradas()) {
     return res.status(400).json({ error: 'Credenciais do Bling não configuradas no arquivo .env.' });
   }
 
-  const config = getConfig();
+  const config = await getConfig();
   if (!config || !config.access_token) {
     return res.status(400).json({ error: 'Bling ainda não foi conectado. Clique em "Conectar ao Bling" primeiro.' });
   }
@@ -231,7 +234,7 @@ router.post('/sync', async (req, res) => {
     req.body.data_inicial ||
     (config.last_sync_at ? config.last_sync_at.slice(0, 10) : new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
 
-  const produtos = db.prepare('SELECT id, codigo FROM produtos').all();
+  const produtos = await db.prepare('SELECT id, codigo FROM produtos').all();
   const produtoPorCodigo = new Map();
   for (const p of produtos) {
     const codigo = String(p.codigo).trim().toUpperCase();
@@ -244,9 +247,12 @@ router.post('/sync', async (req, res) => {
     }
   }
 
-  const jaImportados = new Set(
-    db.prepare('SELECT bling_pedido_id FROM vendas WHERE bling_pedido_id IS NOT NULL').all().map((r) => r.bling_pedido_id)
-  );
+  // bling_pedido_id é BIGINT no Postgres e volta como string do driver — converte pra
+  // número aqui pra bater com o id (numérico) que a API do Bling devolve no JSON.
+  const linhasImportadas = await db
+    .prepare('SELECT bling_pedido_id FROM vendas WHERE bling_pedido_id IS NOT NULL')
+    .all();
+  const jaImportados = new Set(linhasImportadas.map((r) => Number(r.bling_pedido_id)));
 
   let pedidosResumo = [];
   try {
@@ -295,9 +301,9 @@ router.post('/sync', async (req, res) => {
 
       if (itensValidos.length === 0) continue;
 
-      transaction(() => {
+      await transaction(async () => {
         const tipoCliente = pedido.contato?.tipoPessoa === 'F' ? 'CPF' : 'B2B';
-        const infoVenda = db
+        const infoVenda = await db
           .prepare(
             `INSERT INTO vendas (data, tipo_cliente, cliente_nome, forma_pagamento, local, valor_total, observacoes, origem, bling_pedido_id)
              VALUES (?, ?, ?, NULL, 'NOSSO', ?, ?, 'BLING', ?)`
@@ -320,8 +326,8 @@ router.post('/sync', async (req, res) => {
         );
 
         for (const item of itensValidos) {
-          insertItem.run(vendaId, item.produto_id, item.quantidade, item.valor_unitario, item.subtotal);
-          insertMov.run(item.produto_id, 'SAIDA', item.quantidade, pedido.data, pedido.contato?.nome || 'Cliente Bling', 'NOSSO', 'VENDA', vendaId);
+          await insertItem.run(vendaId, item.produto_id, item.quantidade, item.valor_unitario, item.subtotal);
+          await insertMov.run(item.produto_id, 'SAIDA', item.quantidade, pedido.data, pedido.contato?.nome || 'Cliente Bling', 'NOSSO', 'VENDA', vendaId);
         }
       });
 
@@ -331,7 +337,7 @@ router.post('/sync', async (req, res) => {
     }
   }
 
-  db.prepare("UPDATE bling_config SET last_sync_at = datetime('now') WHERE id = 1").run();
+  await db.prepare("UPDATE bling_config SET last_sync_at = NOW() WHERE id = 1").run();
 
   res.json({
     encontrados: pedidosResumo.length,
@@ -340,6 +346,6 @@ router.post('/sync', async (req, res) => {
     itens_nao_encontrados: [...new Set(itensNaoEncontrados)],
     erros,
   });
-});
+}));
 
 module.exports = router;

@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const { db, gerarHashSenha, verificarSenha } = require('../db');
+const wrap = require('./wrap');
 
 const router = express.Router();
 
@@ -15,14 +16,14 @@ const TIPOS_PERMITIDOS = {
   'image/gif': 'gif',
 };
 
-router.get('/', (req, res) => {
-  const usuario = db
+router.get('/', wrap(async (req, res) => {
+  const usuario = await db
     .prepare('SELECT id, usuario, nome_exibicao, foto_perfil FROM usuarios WHERE id = ?')
     .get(req.usuario.id);
   res.json(usuario);
-});
+}));
 
-router.put('/', (req, res) => {
+router.put('/', wrap(async (req, res) => {
   const { nome_exibicao, foto_base64 } = req.body;
 
   let fotoPath;
@@ -43,28 +44,28 @@ router.put('/', (req, res) => {
     fs.writeFileSync(path.join(uploadsDir, nomeArquivo), buffer);
     fotoPath = `/uploads/perfil/${nomeArquivo}`;
 
-    const antigo = db.prepare('SELECT foto_perfil FROM usuarios WHERE id = ?').get(req.usuario.id);
+    const antigo = await db.prepare('SELECT foto_perfil FROM usuarios WHERE id = ?').get(req.usuario.id);
     if (antigo?.foto_perfil) {
       const caminhoAntigo = path.join(__dirname, '..', 'public', antigo.foto_perfil);
       fs.unlink(caminhoAntigo, () => {});
     }
   }
 
-  const usuarioAtual = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(req.usuario.id);
+  const usuarioAtual = await db.prepare('SELECT * FROM usuarios WHERE id = ?').get(req.usuario.id);
 
-  db.prepare('UPDATE usuarios SET nome_exibicao = ?, foto_perfil = ? WHERE id = ?').run(
+  await db.prepare('UPDATE usuarios SET nome_exibicao = ?, foto_perfil = ? WHERE id = ?').run(
     nome_exibicao !== undefined ? (nome_exibicao.trim() || null) : usuarioAtual.nome_exibicao,
     fotoPath || usuarioAtual.foto_perfil,
     req.usuario.id
   );
 
-  const atualizado = db
+  const atualizado = await db
     .prepare('SELECT id, usuario, nome_exibicao, foto_perfil FROM usuarios WHERE id = ?')
     .get(req.usuario.id);
   res.json(atualizado);
-});
+}));
 
-router.put('/senha', (req, res) => {
+router.put('/senha', wrap(async (req, res) => {
   const { senha_atual, senha_nova } = req.body;
   if (!senha_atual || !senha_nova) {
     return res.status(400).json({ error: 'Informe a senha atual e a nova senha.' });
@@ -73,14 +74,14 @@ router.put('/senha', (req, res) => {
     return res.status(400).json({ error: 'A nova senha precisa ter ao menos 4 caracteres.' });
   }
 
-  const usuario = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(req.usuario.id);
+  const usuario = await db.prepare('SELECT * FROM usuarios WHERE id = ?').get(req.usuario.id);
   if (!verificarSenha(senha_atual, usuario.senha_hash, usuario.senha_salt)) {
     return res.status(401).json({ error: 'Senha atual incorreta.' });
   }
 
   const { hash, salt } = gerarHashSenha(senha_nova);
-  db.prepare('UPDATE usuarios SET senha_hash = ?, senha_salt = ? WHERE id = ?').run(hash, salt, req.usuario.id);
+  await db.prepare('UPDATE usuarios SET senha_hash = ?, senha_salt = ? WHERE id = ?').run(hash, salt, req.usuario.id);
   res.status(204).end();
-});
+}));
 
 module.exports = router;

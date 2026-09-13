@@ -1,0 +1,12 @@
+{
+  "name": "corada-print-bridge",
+  "version": "1.0.0",
+  "description": "Agente local que recebe pedidos de impressão de etiquetas do site (hospedado no Netlify) e manda o ZPL para a impressora Zebra conectada neste computador.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
