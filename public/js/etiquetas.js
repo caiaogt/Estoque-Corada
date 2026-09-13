@@ -54,7 +54,9 @@ function formatarDataBR(iso) {
 
 function formatarDataHoraBR(sqlDatetime) {
   if (!sqlDatetime) return '—';
-  const data = new Date(`${sqlDatetime.replace(' ', 'T')}Z`);
+  // O Postgres já devolve isso como string ISO completa (com T e Z) via JSON,
+  // diferente do formato "YYYY-MM-DD HH:MM:SS" que o SQLite usava.
+  const data = new Date(sqlDatetime);
   const dataTexto = data.toLocaleDateString('pt-BR');
   const horaTexto = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   return `${dataTexto} ${horaTexto}`;
