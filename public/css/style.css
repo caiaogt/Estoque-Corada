@@ -463,6 +463,110 @@ h1, h2, h3,
   border-color: var(--white);
 }
 
+/* Recolher/expandir sidebar — só faz sentido no desktop; no celular a sidebar
+   já é um menu overlay (ver @media max-width:600px), então isso fica de fora. */
+@media (min-width: 601px) {
+  .sidebar-collapse-btn {
+    position: absolute;
+    top: 22px;
+    right: -12px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--white);
+    color: var(--graphite);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm);
+    z-index: 101;
+  }
+
+  .sidebar-collapse-btn:hover {
+    background: var(--offwhite);
+  }
+
+  .sidebar.collapsed {
+    width: 76px;
+  }
+
+  .sidebar.collapsed .sidebar-collapse-btn {
+    transform: rotate(180deg);
+  }
+
+  .sidebar.collapsed .sidebar-logo,
+  .sidebar.collapsed #usuario-logado,
+  .sidebar.collapsed #logout-btn,
+  .sidebar.collapsed .nav-caret,
+  .sidebar.collapsed .nav-dropdown-menu {
+    display: none;
+  }
+
+  /* Com a sidebar recolhida, os submenus (Estoque, Cadastros, Vendas) viram um
+     flyout ao lado do ícone em vez de expandir embaixo — senão ficam inacessíveis. */
+  .sidebar.collapsed .nav-dropdown {
+    position: relative;
+  }
+
+  .sidebar.collapsed .nav-dropdown.aberto .nav-dropdown-menu {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    left: 100%;
+    top: 0;
+    margin-left: 8px;
+    background: var(--sidebar-bg);
+    min-width: 190px;
+    padding: 8px;
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    z-index: 250;
+  }
+
+  .sidebar.collapsed .nav-dropdown.aberto .nav-dropdown-menu .tab-btn {
+    font-size: 0.86rem;
+    padding: 9px 12px;
+    justify-content: flex-start;
+    white-space: nowrap;
+  }
+
+  .sidebar.collapsed .tab-btn,
+  .sidebar.collapsed .nav-dropdown-toggle {
+    justify-content: center;
+    padding: 11px 0;
+  }
+
+  .sidebar.collapsed .sidebar-icon {
+    margin-right: 0;
+  }
+
+  .sidebar.collapsed .tab-btn span:not(.sidebar-icon),
+  .sidebar.collapsed .nav-dropdown-toggle span:not(.sidebar-icon) {
+    display: none;
+  }
+
+  .sidebar.collapsed .tab-btn,
+  .sidebar.collapsed .nav-dropdown-toggle {
+    /* esconde só o texto solto (nó de texto), não os spans — usa font-size 0
+       no botão e devolve o tamanho da fonte no ícone, que tem largura fixa. */
+    font-size: 0;
+  }
+
+  .sidebar.collapsed .sidebar-footer {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .sidebar-collapse-btn {
+    display: none;
+  }
+}
+
 /* Main / panels */
 .main-content {
   flex: 1;

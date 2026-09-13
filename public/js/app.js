@@ -193,6 +193,15 @@ navToggleBtn.addEventListener('click', () => {
   sidebarEl.classList.toggle('nav-open');
 });
 
+const sidebarCollapseBtn = document.getElementById('sidebar-collapse-btn');
+if (localStorage.getItem('sidebar-recolhida') === '1') {
+  sidebarEl.classList.add('collapsed');
+}
+sidebarCollapseBtn.addEventListener('click', () => {
+  const recolhida = sidebarEl.classList.toggle('collapsed');
+  localStorage.setItem('sidebar-recolhida', recolhida ? '1' : '0');
+});
+
 document.querySelectorAll('.tab-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
