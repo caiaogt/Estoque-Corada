@@ -41,6 +41,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -420,8 +421,8 @@ h1, h2, h3,
 }
 
 .nav-dropdown.tem-ativo > .nav-dropdown-toggle {
-  color: var(--white);
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--graphite);
+  background: var(--sidebar-bg-active);
 }
 
 .nav-caret {
@@ -454,9 +455,9 @@ h1, h2, h3,
 }
 
 .nav-dropdown-menu .tab-btn.active {
-  background: rgba(230, 230, 79, 0.25);
+  background: none;
   color: var(--white);
-  border-left-color: var(--sidebar-bg-active);
+  border-left-color: var(--coral);
   box-shadow: none;
 }
 
