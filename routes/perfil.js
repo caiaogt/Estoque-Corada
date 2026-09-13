@@ -7,7 +7,6 @@ const wrap = require('./wrap');
 const router = express.Router();
 
 const uploadsDir = path.join(__dirname, '..', 'public', 'uploads', 'perfil');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const TIPOS_PERMITIDOS = {
   'image/png': 'png',
@@ -41,8 +40,15 @@ router.put('/', wrap(async (req, res) => {
     }
 
     const nomeArquivo = `${req.usuario.id}-${Date.now()}.${extensao}`;
-    fs.writeFileSync(path.join(uploadsDir, nomeArquivo), buffer);
-    fotoPath = `/uploads/perfil/${nomeArquivo}`;
+    try {
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      fs.writeFileSync(path.join(uploadsDir, nomeArquivo), buffer);
+      fotoPath = `/uploads/perfil/${nomeArquivo}`;
+    } catch {
+      // No Netlify (e outros ambientes serverless) o disco é somente leitura — upload de
+      // foto de perfil só funciona rodando localmente por enquanto.
+      return res.status(501).json({ error: 'Upload de foto de perfil não está disponível neste ambiente.' });
+    }
 
     const antigo = await db.prepare('SELECT foto_perfil FROM usuarios WHERE id = ?').get(req.usuario.id);
     if (antigo?.foto_perfil) {
