@@ -20,7 +20,7 @@
 
   /* Design system tokens */
   --sidebar-bg: var(--yellow);
-  --sidebar-bg-active: var(--graphite);
+  --sidebar-bg-active: var(--primary-hover);
   --banner-h: 104px;
   --banner-wave-h: 22px;
   --ink: #1B1A2E;
@@ -47,11 +47,17 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html {
+  overflow-x: hidden;
+}
+
 body {
   font-family: 'Poppins', Calibri, Inter, system-ui, Arial, sans-serif;
   color: var(--ink);
   background: var(--bg);
   line-height: 1.5;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 [hidden] {
@@ -400,9 +406,9 @@ h1, h2, h3,
 }
 
 .tab-btn.active {
-  color: var(--white);
+  color: var(--graphite);
   background: var(--sidebar-bg-active);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
 .nav-dropdown-toggle {
@@ -429,8 +435,9 @@ h1, h2, h3,
 }
 
 .nav-dropdown.tem-ativo > .nav-dropdown-toggle {
-  color: var(--white);
+  color: var(--graphite);
   background: var(--sidebar-bg-active);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
 .nav-caret {
@@ -1908,22 +1915,48 @@ td.actions-cell {
     padding: 20px 16px 48px;
   }
 
-  /* Barra de abrir/fechar o menu — fica logo abaixo da faixa amarela fixa,
-     que já traz a onda; aqui só precisa contrastar com ela (por isso escura).
-     margin-top reserva o espaço da onda pra ela não cair em cima do texto. */
+  /* Barra de abrir/fechar o menu — encosta direto na faixa amarela fixa
+     (mesma cor, sem onda no meio) pra parecer uma faixa amarela só, do
+     mesmo tamanho, mesmo com o menu fechado. A onda passa a ficar na base
+     desta barra, que é onde de fato ela transiciona pro conteúdo branco. */
   .nav-toggle-btn {
     display: flex;
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    margin-top: var(--banner-wave-h);
-    background: var(--graphite);
-    color: var(--white);
+    position: relative;
+    background: var(--yellow);
+    color: var(--graphite);
     border: none;
     font-weight: 600;
     font-size: 0.95rem;
     padding: 14px 16px;
     cursor: pointer;
+  }
+
+  .brand-banner::after {
+    display: none;
+  }
+
+  .nav-toggle-btn::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: var(--banner-wave-h);
+    background-image: url("../img/onda-sidebar.svg");
+    background-repeat: repeat-x;
+    background-size: 22px 22px;
+    pointer-events: none;
+  }
+
+  /* Com o menu aberto, o drawer (bem mais alto) cobre a faixa da esquerda e só
+     sobra um pedaço da onda à direita, cortada do nada — sem o drawer do lado
+     esquerdo pra "combinar" com ela. Fica mais limpo sumir com a onda enquanto
+     o menu estiver aberto do que deixar essa onda pela metade. */
+  .sidebar.nav-open ~ .nav-toggle-btn::after {
+    display: none;
   }
 
   .nav-toggle-icon {
