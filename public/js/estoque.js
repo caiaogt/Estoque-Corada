@@ -6,6 +6,9 @@ let ultimoEstoque = [];
 const estoqueSortable = createSortable(document.getElementById('estoque-thead'), () => {
   renderEstoque(estoqueSortable.sort(ultimoEstoque));
 });
+estoqueSortable.state.field = 'codigo';
+estoqueSortable.state.direction = 'asc';
+estoqueSortable.updateIndicators();
 
 createColumnToggle(
   document.getElementById('estoque-tabela'),

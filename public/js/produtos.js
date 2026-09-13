@@ -22,6 +22,9 @@ let ultimosProdutos = [];
 const produtosSortable = createSortable(document.getElementById('produtos-thead'), () => {
   renderProdutos(produtosSortable.sort(ultimosProdutos));
 });
+produtosSortable.state.field = 'codigo';
+produtosSortable.state.direction = 'asc';
+produtosSortable.updateIndicators();
 
 async function carregarProdutos() {
   const params = new URLSearchParams();

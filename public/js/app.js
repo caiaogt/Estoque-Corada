@@ -97,8 +97,15 @@ function createSortable(theadEl, onChange) {
       let vb = b[state.field];
       if (va == null) va = '';
       if (vb == null) vb = '';
-      if (typeof va === 'string') va = va.toLowerCase();
-      if (typeof vb === 'string') vb = vb.toLowerCase();
+      // Códigos como "700908" são texto, mas precisam ordenar como número (senão
+      // "906" viria depois de "700906" na ordenação alfabética).
+      if (/^\d+$/.test(va) && /^\d+$/.test(vb)) {
+        va = Number(va);
+        vb = Number(vb);
+      } else if (typeof va === 'string') {
+        va = va.toLowerCase();
+        vb = String(vb).toLowerCase();
+      }
       if (va < vb) return -1 * factor;
       if (va > vb) return 1 * factor;
       return 0;
