@@ -7,10 +7,12 @@ const logoutBtn = document.getElementById('logout-btn');
 const senhaInput = document.getElementById('login-senha');
 const senhaToggleBtn = document.getElementById('senha-toggle-btn');
 
+const senhaToggleImg = senhaToggleBtn.querySelector('img');
+
 senhaToggleBtn.addEventListener('click', () => {
   const oculta = senhaInput.type === 'password';
   senhaInput.type = oculta ? 'text' : 'password';
-  senhaToggleBtn.textContent = oculta ? '🙈' : '👁';
+  senhaToggleImg.src = oculta ? 'img/icons/icon-ocultar-senha.png' : 'img/icons/icon-mostrar-senha.png';
   senhaToggleBtn.setAttribute('aria-label', oculta ? 'Ocultar senha' : 'Mostrar senha');
 });
 

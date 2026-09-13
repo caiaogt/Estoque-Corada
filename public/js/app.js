@@ -26,6 +26,44 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+const confirmacaoOverlay = document.getElementById('confirmacao-overlay');
+const confirmacaoModal = document.getElementById('confirmacao-modal');
+const confirmacaoTitulo = document.getElementById('confirmacao-titulo');
+const confirmacaoMensagem = document.getElementById('confirmacao-mensagem');
+const confirmacaoConfirmarBtn = document.getElementById('confirmacao-confirmar-btn');
+const confirmacaoCancelarBtn = document.getElementById('confirmacao-cancelar-btn');
+const confirmacaoFecharBtn = document.getElementById('confirmacao-fechar-btn');
+
+function confirmarAcao(mensagem, opcoes = {}) {
+  confirmacaoTitulo.textContent = opcoes.titulo || 'Confirmar ação';
+  confirmacaoMensagem.textContent = mensagem;
+  confirmacaoConfirmarBtn.textContent = opcoes.textoConfirmar || 'Confirmar';
+  confirmacaoOverlay.classList.add('open');
+  confirmacaoModal.classList.add('open');
+
+  return new Promise((resolve) => {
+    function finalizar(resultado) {
+      confirmacaoOverlay.classList.remove('open');
+      confirmacaoModal.classList.remove('open');
+      confirmacaoConfirmarBtn.removeEventListener('click', onConfirmar);
+      confirmacaoCancelarBtn.removeEventListener('click', onCancelar);
+      confirmacaoFecharBtn.removeEventListener('click', onCancelar);
+      confirmacaoOverlay.removeEventListener('click', onCancelar);
+      resolve(resultado);
+    }
+    function onConfirmar() {
+      finalizar(true);
+    }
+    function onCancelar() {
+      finalizar(false);
+    }
+    confirmacaoConfirmarBtn.addEventListener('click', onConfirmar);
+    confirmacaoCancelarBtn.addEventListener('click', onCancelar);
+    confirmacaoFecharBtn.addEventListener('click', onCancelar);
+    confirmacaoOverlay.addEventListener('click', onCancelar);
+  });
+}
+
 function createSortable(theadEl, onChange) {
   const state = { field: null, direction: 'asc' };
 
@@ -97,7 +135,7 @@ function createColumnToggle(table, storageKey, mountEl) {
   const wrapper = document.createElement('div');
   wrapper.className = 'col-toggle';
   wrapper.innerHTML = `
-    <button type="button" class="btn btn-ghost col-toggle-btn">☰ Colunas</button>
+    <button type="button" class="btn btn-ghost col-toggle-btn"><img class="icon-inline" src="img/icons/icon-menu.png" alt=""> Colunas</button>
     <div class="col-toggle-painel">
       ${colunas
         .map(
@@ -142,10 +180,10 @@ function createColumnToggle(table, storageKey, mountEl) {
 
 const navToggleBtn = document.getElementById('nav-toggle-btn');
 const navCurrentLabel = document.getElementById('nav-current-label');
-const tabsNav = document.getElementById('tabs-nav');
+const sidebarEl = document.getElementById('sidebar');
 
 navToggleBtn.addEventListener('click', () => {
-  tabsNav.classList.toggle('nav-open');
+  sidebarEl.classList.toggle('nav-open');
 });
 
 document.querySelectorAll('.tab-btn').forEach((btn) => {
@@ -158,11 +196,12 @@ document.querySelectorAll('.tab-btn').forEach((btn) => {
     panel.classList.add('active');
 
     navCurrentLabel.textContent = btn.textContent;
-    tabsNav.classList.remove('nav-open');
+    sidebarEl.classList.remove('nav-open');
 
     document.querySelectorAll('.nav-dropdown').forEach((d) => {
-      d.classList.remove('aberto');
-      d.classList.toggle('tem-ativo', d.contains(btn));
+      const ativo = d.contains(btn);
+      d.classList.toggle('tem-ativo', ativo);
+      d.classList.toggle('aberto', ativo);
     });
 
     document.dispatchEvent(new CustomEvent(`tab:${btn.dataset.tab}`));
@@ -179,8 +218,39 @@ document.querySelectorAll('.nav-dropdown-toggle').forEach((toggle) => {
   });
 });
 
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.nav-dropdown')) {
-    document.querySelectorAll('.nav-dropdown').forEach((d) => d.classList.remove('aberto'));
+document.querySelectorAll('.link-btn[data-goto]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelector(`[data-tab="${btn.dataset.goto}"]`)?.click();
+  });
+});
+
+const topbarData = document.getElementById('topbar-data');
+const topbarHora = document.getElementById('topbar-hora');
+
+function atualizarTopbarRelogio() {
+  if (!topbarData || !topbarHora) return;
+  const agora = new Date();
+  const dataTexto = agora.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  topbarData.textContent = dataTexto.charAt(0).toUpperCase() + dataTexto.slice(1);
+  topbarHora.textContent = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+atualizarTopbarRelogio();
+setInterval(atualizarTopbarRelogio, 30000);
+
+const topbarBusca = document.getElementById('topbar-busca');
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    topbarBusca?.focus();
   }
+});
+
+const topbarNotif = document.getElementById('topbar-notif-btn')?.closest('.topbar-notif');
+document.getElementById('topbar-notif-btn')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  topbarNotif.classList.toggle('aberto');
+});
+document.addEventListener('click', (e) => {
+  if (topbarNotif && !topbarNotif.contains(e.target)) topbarNotif.classList.remove('aberto');
 });

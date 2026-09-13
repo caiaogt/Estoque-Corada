@@ -85,6 +85,19 @@ db.exec(`
     subtotal REAL NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS etiquetas_impressao (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    produto_id INTEGER NOT NULL REFERENCES produtos(id),
+    quantidade INTEGER NOT NULL CHECK (quantidade > 0),
+    data_fabricacao TEXT NOT NULL,
+    data_validade TEXT,
+    movimentacao_id INTEGER REFERENCES movimentacoes(id),
+    usuario_id INTEGER REFERENCES usuarios(id),
+    impresso_por TEXT,
+    client_op_id TEXT UNIQUE,
+    criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS bling_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     access_token TEXT,
@@ -114,6 +127,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_mov_produto ON movimentacoes(produto_id);
   CREATE INDEX IF NOT EXISTS idx_mov_data ON movimentacoes(data);
   CREATE INDEX IF NOT EXISTS idx_venda_itens_venda ON venda_itens(venda_id);
+  CREATE INDEX IF NOT EXISTS idx_etiquetas_produto ON etiquetas_impressao(produto_id);
+  CREATE INDEX IF NOT EXISTS idx_etiquetas_criado ON etiquetas_impressao(criado_em);
 `);
 
 const produtoColunas = db.prepare("PRAGMA table_info(produtos)").all().map((c) => c.name);
@@ -122,6 +137,17 @@ if (!produtoColunas.includes('linha')) {
 }
 if (!produtoColunas.includes('preco_b2b')) {
   db.exec('ALTER TABLE produtos ADD COLUMN preco_b2b REAL');
+}
+if (!produtoColunas.includes('preco_cpf')) {
+  db.exec('ALTER TABLE produtos ADD COLUMN preco_cpf REAL');
+}
+if (!produtoColunas.includes('validade_meses')) {
+  db.exec('ALTER TABLE produtos ADD COLUMN validade_meses INTEGER');
+}
+
+const etiquetaColunas = db.prepare("PRAGMA table_info(etiquetas_impressao)").all().map((c) => c.name);
+if (!etiquetaColunas.includes('impresso_por')) {
+  db.exec('ALTER TABLE etiquetas_impressao ADD COLUMN impresso_por TEXT');
 }
 
 const movColunas = db.prepare("PRAGMA table_info(movimentacoes)").all().map((c) => c.name);
@@ -157,6 +183,34 @@ if (!movTableSql.includes('VENDA')) {
   });
 }
 
+const movTableSql2 = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'movimentacoes'").get().sql;
+if (!movTableSql2.includes('ETIQUETA')) {
+  transaction(() => {
+    db.exec(`
+      CREATE TABLE movimentacoes_novo (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        produto_id INTEGER NOT NULL REFERENCES produtos(id),
+        tipo TEXT NOT NULL CHECK (tipo IN ('ENTRADA', 'SAIDA')),
+        quantidade INTEGER NOT NULL CHECK (quantidade > 0),
+        data TEXT NOT NULL,
+        freezer TEXT,
+        cliente TEXT,
+        local TEXT NOT NULL DEFAULT 'NOSSO' CHECK (local IN ('NOSSO', 'BASE01')),
+        origem TEXT NOT NULL DEFAULT 'MANUAL' CHECK (origem IN ('MANUAL', 'LOTE', 'KIT', 'AJUSTE', 'VENDA', 'ETIQUETA')),
+        kit_id INTEGER REFERENCES kits(id),
+        venda_id INTEGER,
+        criado_em TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO movimentacoes_novo (id, produto_id, tipo, quantidade, data, freezer, cliente, local, origem, kit_id, venda_id, criado_em)
+        SELECT id, produto_id, tipo, quantidade, data, freezer, cliente, local, origem, kit_id, venda_id, criado_em FROM movimentacoes;
+      DROP TABLE movimentacoes;
+      ALTER TABLE movimentacoes_novo RENAME TO movimentacoes;
+      CREATE INDEX IF NOT EXISTS idx_mov_produto ON movimentacoes(produto_id);
+      CREATE INDEX IF NOT EXISTS idx_mov_data ON movimentacoes(data);
+    `);
+  });
+}
+
 const usuarioColunas = db.prepare("PRAGMA table_info(usuarios)").all().map((c) => c.name);
 if (!usuarioColunas.includes('nome_exibicao')) {
   db.exec('ALTER TABLE usuarios ADD COLUMN nome_exibicao TEXT');
@@ -168,6 +222,14 @@ if (!usuarioColunas.includes('foto_perfil')) {
 const vendaColunas = db.prepare("PRAGMA table_info(vendas)").all().map((c) => c.name);
 if (!vendaColunas.includes('bling_pedido_id')) {
   db.exec('ALTER TABLE vendas ADD COLUMN bling_pedido_id INTEGER');
+}
+if (!vendaColunas.includes('status')) {
+  db.exec(
+    "ALTER TABLE vendas ADD COLUMN status TEXT NOT NULL DEFAULT 'NOVO' CHECK (status IN ('NOVO', 'ENTREGUE', 'CANCELADO'))"
+  );
+}
+if (!vendaColunas.includes('desconto')) {
+  db.exec('ALTER TABLE vendas ADD COLUMN desconto REAL NOT NULL DEFAULT 0');
 }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_vendas_bling_pedido ON vendas(bling_pedido_id) WHERE bling_pedido_id IS NOT NULL');
 

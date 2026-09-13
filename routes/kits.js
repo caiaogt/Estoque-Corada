@@ -98,6 +98,28 @@ router.patch('/:id/status', (req, res) => {
   res.json(carregarKit(req.params.id));
 });
 
+router.delete('/:id', (req, res) => {
+  const kit = db.prepare('SELECT * FROM kits WHERE id = ?').get(req.params.id);
+  if (!kit) return res.status(404).json({ error: 'Kit não encontrado.' });
+
+  const temMovimentacoes = db.prepare('SELECT COUNT(*) AS n FROM movimentacoes WHERE kit_id = ?').get(req.params.id).n > 0;
+
+  if (temMovimentacoes) {
+    db.prepare('UPDATE kits SET ativo = 0 WHERE id = ?').run(req.params.id);
+    return res.json({
+      arquivado: true,
+      mensagem: 'Este kit já tem saídas registradas, então não pode ser excluído sem apagar esse histórico. Ele foi arquivado em vez disso.',
+    });
+  }
+
+  transaction(() => {
+    db.prepare('DELETE FROM kit_itens WHERE kit_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM kits WHERE id = ?').run(req.params.id);
+  });
+
+  res.status(204).end();
+});
+
 router.post('/:id/saida', (req, res) => {
   const { quantidade, data, cliente, local } = req.body;
   const kit = carregarKit(req.params.id);

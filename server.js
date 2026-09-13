@@ -24,6 +24,7 @@ app.use('/api/kits', exigirAutenticacao, require('./routes/kits'));
 app.use('/api/estoque', exigirAutenticacao, require('./routes/estoque'));
 app.use('/api/ajustes', exigirAutenticacao, require('./routes/ajustes'));
 app.use('/api/vendas', exigirAutenticacao, require('./routes/vendas'));
+app.use('/api/etiquetas', exigirAutenticacao, require('./routes/etiquetas'));
 app.use('/api/bling', exigirAutenticacao, require('./routes/bling'));
 app.use('/api/perfil', exigirAutenticacao, require('./routes/perfil'));
 

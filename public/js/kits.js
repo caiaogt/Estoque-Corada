@@ -130,6 +130,8 @@ async function carregarKits() {
   const kits = await api('/kits');
   ultimosKits = kits;
   renderKits(kitsSortable.sort(kits));
+  document.getElementById('kits-kpi-total').textContent = kits.length;
+  document.getElementById('kits-kpi-ativos').textContent = kits.filter((k) => k.ativo).length;
 }
 
 function renderKits(kits) {
@@ -153,6 +155,7 @@ function renderKits(kits) {
         <button class="btn btn-ghost btn-small" data-action="status" data-id="${kit.id}" data-ativo="${kit.ativo}">
           ${kit.ativo ? 'Arquivar' : 'Reativar'}
         </button>
+        <button class="btn btn-danger btn-small" data-action="excluir" data-id="${kit.id}" data-nome="${kit.nome}">Excluir</button>
       </td>
     `;
     kitsBody.appendChild(row);
@@ -172,6 +175,26 @@ kitsBody.addEventListener('click', async (e) => {
   if (action === 'status') {
     await api(`/kits/${id}/status`, { method: 'PATCH', body: JSON.stringify({ ativo: ativo === 'true' ? 0 : 1 }) });
     carregarKits();
+  }
+
+  if (action === 'excluir') {
+    const confirmado = await confirmarAcao(
+      `Excluir o kit "${nome}"? Se ele nunca teve saída registrada, é apagado de vez. Se já tiver histórico, ele é arquivado em vez de excluído, pra preservar esse histórico.`,
+      { titulo: 'Excluir kit', textoConfirmar: 'Excluir' }
+    );
+    if (!confirmado) return;
+
+    try {
+      const resultado = await api(`/kits/${id}`, { method: 'DELETE' });
+      showFeedback(
+        kitFeedback,
+        resultado && resultado.arquivado ? resultado.mensagem : 'Kit excluído.',
+        true
+      );
+      carregarKits();
+    } catch (err) {
+      showFeedback(kitFeedback, err.message);
+    }
   }
 
   if (action === 'saida') {

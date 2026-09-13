@@ -53,7 +53,7 @@ router.get('/:id', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { data, tipo_cliente, cliente_nome, nota_fiscal, forma_pagamento, local, observacoes, itens } = req.body;
+  const { data, tipo_cliente, cliente_nome, nota_fiscal, forma_pagamento, local, observacoes, desconto, itens } = req.body;
 
   if (!data) return res.status(400).json({ error: 'Data é obrigatória.' });
   if (tipo_cliente !== 'B2B' && tipo_cliente !== 'CPF') {
@@ -62,6 +62,9 @@ router.post('/', (req, res) => {
   if (!cliente_nome) return res.status(400).json({ error: 'Nome do cliente é obrigatório.' });
   if (local && local !== 'NOSSO' && local !== 'BASE01') {
     return res.status(400).json({ error: 'Local inválido.' });
+  }
+  if (desconto != null && Number(desconto) < 0) {
+    return res.status(400).json({ error: 'Desconto não pode ser negativo.' });
   }
   if (!Array.isArray(itens) || itens.length === 0) {
     return res.status(400).json({ error: 'A venda precisa de ao menos um item.' });
@@ -77,7 +80,7 @@ router.post('/', (req, res) => {
 
   try {
     const vendaId = transaction(() => {
-      let valorTotal = 0;
+      let subtotalVenda = 0;
       const itensResolvidos = [];
 
       for (const item of itens) {
@@ -87,14 +90,17 @@ router.post('/', (req, res) => {
         const quantidade = Number(item.quantidade);
         const valorUnitario = Number(item.valor_unitario);
         const subtotal = Number((quantidade * valorUnitario).toFixed(2));
-        valorTotal += subtotal;
+        subtotalVenda += subtotal;
         itensResolvidos.push({ produto_id: item.produto_id, quantidade, valorUnitario, subtotal });
       }
 
+      const descontoValor = Math.min(Number(desconto) || 0, subtotalVenda);
+      const valorTotal = Number((subtotalVenda - descontoValor).toFixed(2));
+
       const infoVenda = db
         .prepare(
-          `INSERT INTO vendas (data, tipo_cliente, cliente_nome, nota_fiscal, forma_pagamento, local, valor_total, observacoes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO vendas (data, tipo_cliente, cliente_nome, nota_fiscal, forma_pagamento, local, valor_total, desconto, observacoes)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .run(
           data,
@@ -103,7 +109,8 @@ router.post('/', (req, res) => {
           nota_fiscal ? nota_fiscal.trim() : null,
           forma_pagamento || null,
           local || 'NOSSO',
-          Number(valorTotal.toFixed(2)),
+          valorTotal,
+          Number(descontoValor.toFixed(2)),
           observacoes ? observacoes.trim() : null
         );
 
@@ -140,7 +147,7 @@ router.post('/', (req, res) => {
 });
 
 router.put('/:id', (req, res) => {
-  const { data, tipo_cliente, cliente_nome, nota_fiscal, forma_pagamento, local, observacoes, itens } = req.body;
+  const { data, tipo_cliente, cliente_nome, nota_fiscal, forma_pagamento, local, observacoes, desconto, itens } = req.body;
   const venda = db.prepare('SELECT * FROM vendas WHERE id = ?').get(req.params.id);
   if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
 
@@ -151,6 +158,9 @@ router.put('/:id', (req, res) => {
   if (!cliente_nome) return res.status(400).json({ error: 'Nome do cliente é obrigatório.' });
   if (local && local !== 'NOSSO' && local !== 'BASE01') {
     return res.status(400).json({ error: 'Local inválido.' });
+  }
+  if (desconto != null && Number(desconto) < 0) {
+    return res.status(400).json({ error: 'Desconto não pode ser negativo.' });
   }
   if (!Array.isArray(itens) || itens.length === 0) {
     return res.status(400).json({ error: 'A venda precisa de ao menos um item.' });
@@ -169,7 +179,7 @@ router.put('/:id', (req, res) => {
       db.prepare('DELETE FROM movimentacoes WHERE venda_id = ?').run(req.params.id);
       db.prepare('DELETE FROM venda_itens WHERE venda_id = ?').run(req.params.id);
 
-      let valorTotal = 0;
+      let subtotalVenda = 0;
       const insertItem = db.prepare(
         'INSERT INTO venda_itens (venda_id, produto_id, quantidade, valor_unitario, subtotal) VALUES (?, ?, ?, ?, ?)'
       );
@@ -184,7 +194,7 @@ router.put('/:id', (req, res) => {
         const quantidade = Number(item.quantidade);
         const valorUnitario = Number(item.valor_unitario);
         const subtotal = Number((quantidade * valorUnitario).toFixed(2));
-        valorTotal += subtotal;
+        subtotalVenda += subtotal;
 
         insertItem.run(req.params.id, item.produto_id, quantidade, valorUnitario, subtotal);
         insertMovimentacao.run(
@@ -199,8 +209,11 @@ router.put('/:id', (req, res) => {
         );
       }
 
+      const descontoValor = Math.min(Number(desconto) || 0, subtotalVenda);
+      const valorTotal = Number((subtotalVenda - descontoValor).toFixed(2));
+
       db.prepare(
-        `UPDATE vendas SET data = ?, tipo_cliente = ?, cliente_nome = ?, nota_fiscal = ?, forma_pagamento = ?, local = ?, valor_total = ?, observacoes = ?
+        `UPDATE vendas SET data = ?, tipo_cliente = ?, cliente_nome = ?, nota_fiscal = ?, forma_pagamento = ?, local = ?, valor_total = ?, desconto = ?, observacoes = ?
          WHERE id = ?`
       ).run(
         data,
@@ -209,7 +222,8 @@ router.put('/:id', (req, res) => {
         nota_fiscal ? nota_fiscal.trim() : null,
         forma_pagamento || null,
         local || 'NOSSO',
-        Number(valorTotal.toFixed(2)),
+        valorTotal,
+        Number(descontoValor.toFixed(2)),
         observacoes ? observacoes.trim() : null,
         req.params.id
       );
@@ -219,6 +233,20 @@ router.put('/:id', (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+const STATUS_VALIDOS = ['NOVO', 'ENTREGUE', 'CANCELADO'];
+
+router.patch('/:id/status', (req, res) => {
+  const { status } = req.body;
+  const venda = db.prepare('SELECT * FROM vendas WHERE id = ?').get(req.params.id);
+  if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
+  if (!STATUS_VALIDOS.includes(status)) {
+    return res.status(400).json({ error: 'Status inválido.' });
+  }
+
+  db.prepare('UPDATE vendas SET status = ? WHERE id = ?').run(status, req.params.id);
+  res.json(carregarVenda(req.params.id));
 });
 
 router.delete('/:id', (req, res) => {

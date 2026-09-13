@@ -5,12 +5,15 @@ const router = express.Router();
 
 router.get('/', (req, res) => {
   const { ativo, marca, q } = req.query;
+  const mesAtual = new Date().toISOString().slice(0, 7);
 
   let sql = `
     SELECT
       p.id, p.codigo, p.descricao, p.marca, p.linha, p.preco_b2b, p.ativo,
       COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' THEN m.quantidade ELSE 0 END), 0) AS total_entradas,
       COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' THEN m.quantidade ELSE 0 END), 0) AS total_saidas,
+      COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND SUBSTR(m.data, 1, 7) = ? THEN m.quantidade ELSE 0 END), 0) AS entradas_mes,
+      COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND SUBSTR(m.data, 1, 7) = ? THEN m.quantidade ELSE 0 END), 0) AS saidas_mes,
       COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND m.local = 'NOSSO' THEN m.quantidade ELSE 0 END), 0) AS entradas_nosso,
       COALESCE(SUM(CASE WHEN m.tipo = 'SAIDA' AND m.local = 'NOSSO' THEN m.quantidade ELSE 0 END), 0) AS saidas_nosso,
       COALESCE(SUM(CASE WHEN m.tipo = 'ENTRADA' AND m.local = 'BASE01' THEN m.quantidade ELSE 0 END), 0) AS entradas_base01,
@@ -19,7 +22,7 @@ router.get('/', (req, res) => {
     LEFT JOIN movimentacoes m ON m.produto_id = p.id
     WHERE 1=1
   `;
-  const params = [];
+  const params = [mesAtual, mesAtual];
 
   if (ativo === '0' || ativo === '1') {
     sql += ' AND p.ativo = ?';

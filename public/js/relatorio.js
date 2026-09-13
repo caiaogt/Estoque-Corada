@@ -47,7 +47,7 @@ function montarRelatorio(estoque) {
 
 gerarRelatorioBtn.addEventListener('click', async () => {
   gerarRelatorioBtn.disabled = true;
-  gerarRelatorioBtn.textContent = 'Gerando...';
+  gerarRelatorioBtn.innerHTML = 'Gerando...';
 
   try {
     const estoque = await api('/estoque?ativo=1');
@@ -67,6 +67,6 @@ gerarRelatorioBtn.addEventListener('click', async () => {
     alert(`Erro ao gerar relatório: ${err.message}`);
   } finally {
     gerarRelatorioBtn.disabled = false;
-    gerarRelatorioBtn.textContent = '📄 Gerar Relatório';
+    gerarRelatorioBtn.innerHTML = '<img class="icon-inline" src="img/icons/icon-relatorio.png" alt=""> Gerar Relatório';
   }
 });

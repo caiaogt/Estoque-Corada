@@ -112,6 +112,68 @@ async function blingFetch(caminho) {
   return json;
 }
 
+const SITUACAO_NFE = {
+  1: 'Pendente',
+  2: 'Cancelada',
+  3: 'Aguardando recibo',
+  4: 'Rejeitada',
+  5: 'Autorizada',
+  6: 'Emitida DANFE',
+  7: 'Registrada',
+  8: 'Aguardando protocolo',
+  9: 'Denegada',
+  10: 'Consulta situação',
+  11: 'Bloqueada',
+};
+
+router.get('/vendas/:vendaId/nota', async (req, res) => {
+  if (!credenciaisConfiguradas()) {
+    return res.status(400).json({ error: 'Credenciais do Bling não configuradas no arquivo .env.' });
+  }
+
+  const venda = db.prepare('SELECT id, bling_pedido_id FROM vendas WHERE id = ?').get(req.params.vendaId);
+  if (!venda) return res.status(404).json({ error: 'Venda não encontrada.' });
+  if (!venda.bling_pedido_id) {
+    return res.status(400).json({ error: 'Esta venda não está vinculada a um pedido do Bling.' });
+  }
+
+  try {
+    const pedidoJson = await blingFetch(`/pedidos/vendas/${venda.bling_pedido_id}`);
+    const notaFiscalId = pedidoJson.data?.notaFiscal?.id;
+    if (!notaFiscalId) {
+      return res.json({ emitida: false });
+    }
+
+    let notaJson;
+    try {
+      notaJson = await blingFetch(`/nfe/${notaFiscalId}`);
+    } catch (err) {
+      if (err.message === 'Não encontrado.') {
+        return res.json({ emitida: false, indisponivel: true });
+      }
+      throw err;
+    }
+
+    const nota = notaJson.data;
+    res.json({
+      emitida: true,
+      numero: nota.numero,
+      serie: nota.serie,
+      situacao: nota.situacao,
+      situacao_label: SITUACAO_NFE[nota.situacao] || 'Desconhecida',
+      chave_acesso: nota.chaveAcesso,
+      data_emissao: nota.dataEmissao,
+      link_danfe: nota.linkDanfe,
+      link_pdf: nota.linkPDF,
+    });
+  } catch (err) {
+    if (err.message === 'BLING_NAO_CONECTADO') {
+      return res.status(400).json({ error: 'Bling não conectado.' });
+    }
+    res.status(502).json({ error: `Erro ao buscar nota fiscal no Bling: ${err.message}` });
+  }
+});
+
 router.get('/status', (req, res) => {
   const config = getConfig();
   res.json({

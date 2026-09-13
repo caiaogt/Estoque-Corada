@@ -124,4 +124,18 @@ router.post('/lote', (req, res) => {
   }
 });
 
+router.delete('/:id', (req, res) => {
+  const mov = db.prepare('SELECT * FROM movimentacoes WHERE id = ?').get(req.params.id);
+  if (!mov) return res.status(404).json({ error: 'Movimentação não encontrada.' });
+
+  transaction(() => {
+    // Se essa movimentação veio de uma impressão de etiqueta, desvincula em vez de apagar o
+    // histórico da impressão — só o efeito no estoque é desfeito.
+    db.prepare('UPDATE etiquetas_impressao SET movimentacao_id = NULL WHERE movimentacao_id = ?').run(req.params.id);
+    db.prepare('DELETE FROM movimentacoes WHERE id = ?').run(req.params.id);
+  });
+
+  res.status(204).end();
+});
+
 module.exports = router;

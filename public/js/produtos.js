@@ -32,14 +32,23 @@ async function carregarProdutos() {
   const produtos = await api(`/produtos?${params.toString()}`);
   ultimosProdutos = produtos;
   renderProdutos(produtosSortable.sort(produtos));
+  carregarKpisProdutos();
   return produtos;
+}
+
+async function carregarKpisProdutos() {
+  const todos = await api('/produtos');
+  document.getElementById('produtos-kpi-total').textContent = todos.length;
+  document.getElementById('produtos-kpi-ativos').textContent = todos.filter((p) => p.ativo).length;
+  document.getElementById('produtos-kpi-corada').textContent = todos.filter((p) => p.marca === 'CORADA').length;
+  document.getElementById('produtos-kpi-meali').textContent = todos.filter((p) => p.marca === 'MEALI').length;
 }
 
 function renderProdutos(produtos) {
   produtosBody.innerHTML = '';
 
   if (produtos.length === 0) {
-    produtosBody.innerHTML = '<tr class="empty-row"><td colspan="7">Nenhum produto encontrado.</td></tr>';
+    produtosBody.innerHTML = '<tr class="empty-row"><td colspan="9">Nenhum produto encontrado.</td></tr>';
     return;
   }
 
@@ -51,6 +60,8 @@ function renderProdutos(produtos) {
       <td>${p.marca}</td>
       <td>${p.linha ? LINHA_LABEL[p.linha] || p.linha : '—'}</td>
       <td>${p.preco_b2b != null ? `R$ ${formatMoney(p.preco_b2b)}` : '—'}</td>
+      <td>${p.preco_cpf != null ? `R$ ${formatMoney(p.preco_cpf)}` : '—'}</td>
+      <td>${p.validade_meses ? `${p.validade_meses} ${p.validade_meses === 1 ? 'mês' : 'meses'}` : '—'}</td>
       <td><span class="status-badge ${p.ativo ? 'ativo' : 'arquivado'}">${p.ativo ? 'Ativo' : 'Arquivado'}</span></td>
       <td class="actions-cell">
         <button class="btn btn-ghost btn-small" data-action="editar" data-id="${p.id}">Editar</button>
@@ -71,6 +82,8 @@ function iniciarEdicaoProduto(produto) {
   produtoForm.marca.value = produto.marca;
   produtoForm.linha.value = produto.linha || '';
   produtoForm.preco_b2b.value = produto.preco_b2b != null ? produto.preco_b2b : '';
+  produtoForm.preco_cpf.value = produto.preco_cpf != null ? produto.preco_cpf : '';
+  produtoForm.validade_meses.value = produto.validade_meses != null ? produto.validade_meses : '';
   produtoFormTitle.textContent = `Editar Produto — ${produto.codigo}`;
   produtoCancelarBtn.hidden = false;
   produtoForm.codigo.focus();
@@ -94,6 +107,8 @@ produtoForm.addEventListener('submit', async (e) => {
     marca: produtoForm.marca.value,
     linha: produtoForm.linha.value || null,
     preco_b2b: produtoForm.preco_b2b.value || null,
+    preco_cpf: produtoForm.preco_cpf.value || null,
+    validade_meses: produtoForm.validade_meses.value || null,
   };
 
   try {
@@ -132,14 +147,19 @@ produtosBody.addEventListener('click', async (e) => {
   }
 
   if (action === 'excluir') {
-    const confirmado = confirm(
-      `Excluir o produto "${codigo}"? Isso apaga também todo o histórico de movimentações e ajustes desse produto, e não pode ser desfeito.`
+    const confirmado = await confirmarAcao(
+      `Excluir o produto "${codigo}"? Se ele nunca teve movimentação ou venda, é apagado de vez. Se já tiver histórico, ele é arquivado em vez de excluído, pra preservar esse histórico.`,
+      { titulo: 'Excluir produto', textoConfirmar: 'Excluir' }
     );
     if (!confirmado) return;
 
     try {
-      await api(`/produtos/${id}`, { method: 'DELETE' });
-      showFeedback(produtoFeedback, 'Produto excluído.', true);
+      const resultado = await api(`/produtos/${id}`, { method: 'DELETE' });
+      showFeedback(
+        produtoFeedback,
+        resultado && resultado.arquivado ? resultado.mensagem : 'Produto excluído.',
+        true
+      );
       carregarProdutos();
     } catch (err) {
       showFeedback(produtoFeedback, err.message);
