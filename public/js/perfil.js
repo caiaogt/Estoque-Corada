@@ -25,6 +25,7 @@ function renderAvatar(el, usuario) {
 }
 
 async function abrirPerfil() {
+  document.getElementById('sidebar').classList.remove('nav-open');
   fotoSelecionadaBase64 = null;
   showFeedback(perfilDadosFeedback, '');
   showFeedback(perfilSenhaFeedback, '');
